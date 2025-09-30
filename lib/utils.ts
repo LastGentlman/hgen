@@ -1,0 +1,142 @@
+import { format, addDays, startOfWeek } from 'date-fns'
+import { Employee, Schedule, ScheduleDay, Shift, ShiftTemplate } from '@/types'
+
+export function generateId(): string {
+  return Math.random().toString(36).substr(2, 9)
+}
+
+export function formatTime(time: string): string {
+  try {
+    const [hours, minutes] = time.split(':')
+    const hour = parseInt(hours)
+    const period = hour >= 12 ? 'PM' : 'AM'
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
+    return `${displayHour}:${minutes} ${period}`
+  } catch {
+    return time
+  }
+}
+
+export function calculateShiftDuration(startTime: string, endTime: string): number {
+  try {
+    const [startHour, startMin] = startTime.split(':').map(Number)
+    const [endHour, endMin] = endTime.split(':').map(Number)
+
+    const startMinutes = startHour * 60 + startMin
+    let endMinutes = endHour * 60 + endMin
+
+    // Handle overnight shifts
+    if (endMinutes < startMinutes) {
+      endMinutes += 24 * 60
+    }
+
+    return (endMinutes - startMinutes) / 60
+  } catch {
+    return 0
+  }
+}
+
+export function generateWeeklySchedule(
+  startDate: string,
+  name: string,
+  templates: ShiftTemplate[]
+): Schedule {
+  const start = new Date(startDate)
+  const weekStart = startOfWeek(start, { weekStartsOn: 1 }) // Monday
+
+  const days: ScheduleDay[] = []
+  const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+  for (let i = 0; i < 7; i++) {
+    const currentDate = addDays(weekStart, i)
+    const dayName = dayNames[i]
+    const dateStr = format(currentDate, 'yyyy-MM-dd')
+
+    const dayTemplates = templates.filter(t => t.dayOfWeek === dayName)
+    const shifts: Shift[] = dayTemplates.map(template => ({
+      id: generateId(),
+      startTime: template.startTime,
+      endTime: template.endTime,
+      position: template.position,
+      date: dateStr,
+      isAssigned: false
+    }))
+
+    days.push({
+      date: dateStr,
+      dayName,
+      shifts
+    })
+  }
+
+  return {
+    id: generateId(),
+    name,
+    startDate: format(weekStart, 'yyyy-MM-dd'),
+    endDate: format(addDays(weekStart, 6), 'yyyy-MM-dd'),
+    days,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }
+}
+
+export function exportToCSV(schedule: Schedule, employees: Employee[]): string {
+  const employeeMap = new Map(employees.map(emp => [emp.id, emp.name]))
+
+  let csv = 'Date,Day,Start Time,End Time,Position,Employee,Duration (hours)\n'
+
+  schedule.days.forEach(day => {
+    day.shifts.forEach(shift => {
+      const employeeName = shift.employeeId ? employeeMap.get(shift.employeeId) || 'Unknown' : 'Unassigned'
+      const duration = calculateShiftDuration(shift.startTime, shift.endTime)
+
+      csv += `${day.date},${day.dayName},${shift.startTime},${shift.endTime},${shift.position},${employeeName},${duration}\n`
+    })
+  })
+
+  return csv
+}
+
+export function downloadFile(content: string, filename: string, type: string): void {
+  const blob = new Blob([content], { type })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+export function getDefaultShiftTemplates(): ShiftTemplate[] {
+  return [
+    // Monday
+    { startTime: '09:00', endTime: '17:00', position: 'Manager', dayOfWeek: 'Monday' },
+    { startTime: '10:00', endTime: '18:00', position: 'Sales Associate', dayOfWeek: 'Monday' },
+    { startTime: '14:00', endTime: '22:00', position: 'Evening Staff', dayOfWeek: 'Monday' },
+
+    // Tuesday
+    { startTime: '09:00', endTime: '17:00', position: 'Manager', dayOfWeek: 'Tuesday' },
+    { startTime: '10:00', endTime: '18:00', position: 'Sales Associate', dayOfWeek: 'Tuesday' },
+
+    // Wednesday
+    { startTime: '09:00', endTime: '17:00', position: 'Manager', dayOfWeek: 'Wednesday' },
+    { startTime: '10:00', endTime: '18:00', position: 'Sales Associate', dayOfWeek: 'Wednesday' },
+
+    // Thursday
+    { startTime: '09:00', endTime: '17:00', position: 'Manager', dayOfWeek: 'Thursday' },
+    { startTime: '10:00', endTime: '18:00', position: 'Sales Associate', dayOfWeek: 'Thursday' },
+
+    // Friday
+    { startTime: '09:00', endTime: '17:00', position: 'Manager', dayOfWeek: 'Friday' },
+    { startTime: '10:00', endTime: '18:00', position: 'Sales Associate', dayOfWeek: 'Friday' },
+    { startTime: '14:00', endTime: '22:00', position: 'Evening Staff', dayOfWeek: 'Friday' },
+
+    // Saturday
+    { startTime: '10:00', endTime: '18:00', position: 'Weekend Staff', dayOfWeek: 'Saturday' },
+
+    // Sunday
+    { startTime: '12:00', endTime: '20:00', position: 'Weekend Staff', dayOfWeek: 'Sunday' }
+  ]
+}
