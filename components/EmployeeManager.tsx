@@ -100,7 +100,7 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
         // Create employee objects from names
         const newEmployees: Employee[] = namesToImport.map(name => ({
           id: generateId(),
-          name: typeof name === 'string' ? name : name.name || 'Unknown',
+          name: typeof name === 'string' ? name : String(name),
           maxHoursPerWeek: 40,
           availableDays: [...defaultDays]
         }))
