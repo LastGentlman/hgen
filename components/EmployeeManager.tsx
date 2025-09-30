@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Employee } from '@/types'
 import { storage } from '@/lib/storage'
 import { generateId } from '@/lib/utils'
-import { Plus, Edit2, Trash2, Save, X, Users } from 'lucide-react'
+import { Plus, Edit2, Trash2, Save, X, Users, Upload } from 'lucide-react'
 
 interface EmployeeManagerProps {
   onUpdate: () => void
@@ -20,17 +20,15 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
     setEmployees(storage.getEmployees())
   }, [])
 
-  const defaultDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+  const defaultDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
   const handleAdd = () => {
     setIsAdding(true)
     setFormData({
       name: '',
-      department: '',
+      phone: '',
       maxHoursPerWeek: 40,
-      availableDays: [...defaultDays],
-      email: '',
-      phone: ''
+      availableDays: [...defaultDays]
     })
   }
 
@@ -45,11 +43,9 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
     const employeeData: Employee = {
       id: editingId || generateId(),
       name: formData.name.trim(),
-      department: formData.department?.trim(),
-      maxHoursPerWeek: formData.maxHoursPerWeek || 40,
-      availableDays: formData.availableDays || defaultDays,
-      email: formData.email?.trim(),
-      phone: formData.phone?.trim()
+      phone: formData.phone?.trim(),
+      maxHoursPerWeek: 40,
+      availableDays: [...defaultDays]
     }
 
     if (editingId) {
@@ -79,29 +75,77 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
     }
   }
 
-  const handleDayToggle = (day: string) => {
-    const currentDays = formData.availableDays || []
-    const newDays = currentDays.includes(day)
-      ? currentDays.filter(d => d !== day)
-      : [...currentDays, day]
+  const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
 
-    setFormData({ ...formData, availableDays: newDays })
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string
+        const data = JSON.parse(content)
+
+        let namesToImport: string[] = []
+
+        // Support multiple JSON formats
+        if (Array.isArray(data)) {
+          namesToImport = data
+        } else if (data.employees && Array.isArray(data.employees)) {
+          namesToImport = data.employees
+        } else {
+          alert('Invalid JSON format. Expected an array of names or an object with "employees" array.')
+          return
+        }
+
+        // Create employee objects from names
+        const newEmployees: Employee[] = namesToImport.map(name => ({
+          id: generateId(),
+          name: typeof name === 'string' ? name : name.name || 'Unknown',
+          maxHoursPerWeek: 40,
+          availableDays: [...defaultDays]
+        }))
+
+        // Add all new employees
+        newEmployees.forEach(emp => storage.addEmployee(emp))
+
+        setEmployees(storage.getEmployees())
+        onUpdate()
+        alert(`Successfully imported ${newEmployees.length} employees!`)
+      } catch (error) {
+        alert('Error parsing JSON file. Please check the file format.')
+        console.error(error)
+      }
+    }
+    reader.readAsText(file)
+
+    // Reset input
+    event.target.value = ''
   }
-
-  const allDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">Employee Management</h2>
-        <button
-          onClick={handleAdd}
-          className="btn btn-primary flex items-center space-x-2"
-          disabled={isAdding || editingId !== null}
-        >
-          <Plus className="h-5 w-5" />
-          <span>Add Employee</span>
-        </button>
+        <div className="flex items-center space-x-2">
+          <label className="btn btn-secondary flex items-center space-x-2 cursor-pointer">
+            <Upload className="h-5 w-5" />
+            <span>Import JSON</span>
+            <input
+              type="file"
+              accept=".json"
+              onChange={handleImportJSON}
+              className="hidden"
+            />
+          </label>
+          <button
+            onClick={handleAdd}
+            className="btn btn-primary flex items-center space-x-2"
+            disabled={isAdding || editingId !== null}
+          >
+            <Plus className="h-5 w-5" />
+            <span>Add Employee</span>
+          </button>
+        </div>
       </div>
 
       {/* Add/Edit Form */}
@@ -127,32 +171,6 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Department
-              </label>
-              <input
-                type="text"
-                value={formData.department || ''}
-                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                className="input"
-                placeholder="Enter department"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email
-              </label>
-              <input
-                type="email"
-                value={formData.email || ''}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="input"
-                placeholder="Enter email address"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Phone
               </label>
               <input
@@ -162,42 +180,6 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
                 className="input"
                 placeholder="Enter phone number"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Max Hours Per Week
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="168"
-                value={formData.maxHoursPerWeek || 40}
-                onChange={(e) => setFormData({ ...formData, maxHoursPerWeek: parseInt(e.target.value) })}
-                className="input"
-              />
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Available Days
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {allDays.map((day) => (
-                <button
-                  key={day}
-                  type="button"
-                  onClick={() => handleDayToggle(day)}
-                  className={`px-3 py-1 text-sm rounded-md border transition-colors ${
-                    (formData.availableDays || []).includes(day)
-                      ? 'bg-primary-100 border-primary-300 text-primary-700'
-                      : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {day}
-                </button>
-              ))}
             </div>
           </div>
 
@@ -226,10 +208,10 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
         {employees.map((employee) => (
           <div key={employee.id} className="card">
             <div className="flex items-start justify-between mb-3">
-              <div>
+              <div className="flex-1">
                 <h3 className="font-medium text-gray-900">{employee.name}</h3>
-                {employee.department && (
-                  <p className="text-sm text-gray-600">{employee.department}</p>
+                {employee.phone && (
+                  <p className="text-sm text-gray-600">📞 {employee.phone}</p>
                 )}
               </div>
               <div className="flex items-center space-x-1">
@@ -247,29 +229,6 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
-              </div>
-            </div>
-
-            <div className="space-y-2 text-sm text-gray-600">
-              {employee.email && (
-                <p>📧 {employee.email}</p>
-              )}
-              {employee.phone && (
-                <p>📞 {employee.phone}</p>
-              )}
-              <p>⏰ Max {employee.maxHoursPerWeek}h/week</p>
-              <div>
-                <p className="font-medium text-gray-700 mb-1">Available:</p>
-                <div className="flex flex-wrap gap-1">
-                  {employee.availableDays.map((day) => (
-                    <span
-                      key={day}
-                      className="px-2 py-1 text-xs bg-primary-100 text-primary-700 rounded"
-                    >
-                      {day.slice(0, 3)}
-                    </span>
-                  ))}
-                </div>
               </div>
             </div>
           </div>

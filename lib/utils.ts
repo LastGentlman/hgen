@@ -1,5 +1,5 @@
-import { format, addDays, startOfWeek } from 'date-fns'
-import { Employee, Schedule, ScheduleDay, Shift, ShiftTemplate } from '@/types'
+import { format, addDays } from 'date-fns'
+import { Employee, Schedule, ScheduleDay, Shift, ShiftTemplate, DayOfWeek } from '@/types'
 
 export function generateId(): string {
   return Math.random().toString(36).substr(2, 9)
@@ -42,14 +42,13 @@ export function generateWeeklySchedule(
   templates: ShiftTemplate[]
 ): Schedule {
   const start = new Date(startDate)
-  const weekStart = startOfWeek(start, { weekStartsOn: 1 }) // Monday
 
   const days: ScheduleDay[] = []
   const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
-  for (let i = 0; i < 7; i++) {
-    const currentDate = addDays(weekStart, i)
-    const dayName = dayNames[i]
+  for (let i = 0; i < 15; i++) {
+    const currentDate = addDays(start, i)
+    const dayName = dayNames[i % 7] // Cycle through day names
     const dateStr = format(currentDate, 'yyyy-MM-dd')
 
     const dayTemplates = templates.filter(t => t.dayOfWeek === dayName)
@@ -72,8 +71,8 @@ export function generateWeeklySchedule(
   return {
     id: generateId(),
     name,
-    startDate: format(weekStart, 'yyyy-MM-dd'),
-    endDate: format(addDays(weekStart, 6), 'yyyy-MM-dd'),
+    startDate: format(start, 'yyyy-MM-dd'),
+    endDate: format(addDays(start, 14), 'yyyy-MM-dd'),
     days,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -110,33 +109,17 @@ export function downloadFile(content: string, filename: string, type: string): v
 }
 
 export function getDefaultShiftTemplates(): ShiftTemplate[] {
-  return [
-    // Monday
-    { startTime: '09:00', endTime: '17:00', position: 'Manager', dayOfWeek: 'Monday' },
-    { startTime: '10:00', endTime: '18:00', position: 'Sales Associate', dayOfWeek: 'Monday' },
-    { startTime: '14:00', endTime: '22:00', position: 'Evening Staff', dayOfWeek: 'Monday' },
+  const shifts: ShiftTemplate[] = []
+  const dayNames: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
-    // Tuesday
-    { startTime: '09:00', endTime: '17:00', position: 'Manager', dayOfWeek: 'Tuesday' },
-    { startTime: '10:00', endTime: '18:00', position: 'Sales Associate', dayOfWeek: 'Tuesday' },
+  // Create 3 shifts for each day (24/7 operation)
+  dayNames.forEach(day => {
+    shifts.push(
+      { startTime: '06:00', endTime: '14:00', position: 'Morning Shift', dayOfWeek: day },
+      { startTime: '14:00', endTime: '22:00', position: 'Afternoon Shift', dayOfWeek: day },
+      { startTime: '22:00', endTime: '06:00', position: 'Night Shift', dayOfWeek: day }
+    )
+  })
 
-    // Wednesday
-    { startTime: '09:00', endTime: '17:00', position: 'Manager', dayOfWeek: 'Wednesday' },
-    { startTime: '10:00', endTime: '18:00', position: 'Sales Associate', dayOfWeek: 'Wednesday' },
-
-    // Thursday
-    { startTime: '09:00', endTime: '17:00', position: 'Manager', dayOfWeek: 'Thursday' },
-    { startTime: '10:00', endTime: '18:00', position: 'Sales Associate', dayOfWeek: 'Thursday' },
-
-    // Friday
-    { startTime: '09:00', endTime: '17:00', position: 'Manager', dayOfWeek: 'Friday' },
-    { startTime: '10:00', endTime: '18:00', position: 'Sales Associate', dayOfWeek: 'Friday' },
-    { startTime: '14:00', endTime: '22:00', position: 'Evening Staff', dayOfWeek: 'Friday' },
-
-    // Saturday
-    { startTime: '10:00', endTime: '18:00', position: 'Weekend Staff', dayOfWeek: 'Saturday' },
-
-    // Sunday
-    { startTime: '12:00', endTime: '20:00', position: 'Weekend Staff', dayOfWeek: 'Sunday' }
-  ]
+  return shifts
 }

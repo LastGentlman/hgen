@@ -27,12 +27,10 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
   const handleCreate = () => {
     setIsCreating(true)
     const today = new Date()
-    const monday = new Date(today)
-    monday.setDate(today.getDate() - today.getDay() + 1)
 
     setFormData({
-      name: `Week of ${monday.toLocaleDateString()}`,
-      startDate: monday.toISOString().split('T')[0]
+      name: `15-Day Schedule - ${today.toLocaleDateString()}`,
+      startDate: today.toISOString().split('T')[0]
     })
   }
 
@@ -113,7 +111,7 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Start Date (Monday) *
+                Start Date *
               </label>
               <input
                 type="date"
@@ -125,14 +123,15 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
           </div>
 
           <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-            <h4 className="font-medium text-gray-900 mb-2">Default Schedule Template</h4>
+            <h4 className="font-medium text-gray-900 mb-2">Default Schedule Template (15-Day Cycle)</h4>
             <div className="text-sm text-gray-600 space-y-1">
-              <p><strong>Monday-Friday:</strong> Manager (9-5), Sales Associate (10-6), Evening Staff (2-10)</p>
-              <p><strong>Saturday:</strong> Weekend Staff (10-6)</p>
-              <p><strong>Sunday:</strong> Weekend Staff (12-8)</p>
+              <p><strong>24/7 Operation:</strong> 3 shifts per day, every day</p>
+              <p><strong>Morning Shift:</strong> 6:00 AM - 2:00 PM</p>
+              <p><strong>Afternoon Shift:</strong> 2:00 PM - 10:00 PM</p>
+              <p><strong>Night Shift:</strong> 10:00 PM - 6:00 AM</p>
             </div>
             <p className="text-xs text-gray-500 mt-2">
-              You can customize shifts after creating the schedule.
+              Schedule runs for 15 consecutive days. You can customize shifts after creating the schedule.
             </p>
           </div>
 
