@@ -47,8 +47,9 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
     // Only rotate if this shift belongs to this employee
     if (shift.employeeId !== employeeId) return
 
-    // Get current status and rotate to next
-    const currentStatusIndex = STATUS_ROTATION.indexOf(shift.status)
+    // Get current status and rotate to next (default to 'assigned' if undefined)
+    const currentStatus = shift.status || 'assigned'
+    const currentStatusIndex = STATUS_ROTATION.indexOf(currentStatus)
     const nextStatus = STATUS_ROTATION[(currentStatusIndex + 1) % STATUS_ROTATION.length]
 
     shift.status = nextStatus
@@ -215,7 +216,8 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
                       )
 
                       const isAssignedToEmployee = shift?.employeeId === employee.id
-                      const status = isAssignedToEmployee ? shift.status : 'empty'
+                      // Default to 'empty' if status is missing (for old data)
+                      const status = isAssignedToEmployee ? (shift.status || 'assigned') : 'empty'
                       const config = STATUS_CONFIG[status]
 
                       return (

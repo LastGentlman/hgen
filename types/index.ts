@@ -16,7 +16,7 @@ export interface Shift {
   employeeId?: string
   date: string
   isAssigned: boolean
-  status: ShiftStatus
+  status?: ShiftStatus
 }
 
 export interface ScheduleDay {

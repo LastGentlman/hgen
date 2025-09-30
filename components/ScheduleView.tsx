@@ -245,7 +245,9 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
                   const duration = calculateShiftDuration(shift.startTime, shift.endTime)
                   const availableEmployees = getAvailableEmployees(day.dayName, shift.employeeId)
 
-                  const statusConfig = STATUS_CONFIG[shift.status]
+                  // Default to 'empty' if status is missing (for old data)
+                  const status = shift.status || (shift.isAssigned ? 'assigned' : 'empty')
+                  const statusConfig = STATUS_CONFIG[status]
 
                   return (
                     <div
@@ -277,7 +279,7 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
                           )}
 
                           <select
-                            value={shift.status}
+                            value={status}
                             onChange={(e) => handleStatusChange(dayIndex, shiftIndex, e.target.value as ShiftStatus)}
                             className="text-sm border border-gray-300 rounded px-2 py-1"
                           >
