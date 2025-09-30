@@ -56,7 +56,6 @@ export function generateWeeklySchedule(
       id: generateId(),
       startTime: template.startTime,
       endTime: template.endTime,
-      position: template.position,
       date: dateStr,
       isAssigned: false
     }))
@@ -82,14 +81,14 @@ export function generateWeeklySchedule(
 export function exportToCSV(schedule: Schedule, employees: Employee[]): string {
   const employeeMap = new Map(employees.map(emp => [emp.id, emp.name]))
 
-  let csv = 'Date,Day,Start Time,End Time,Position,Employee,Duration (hours)\n'
+  let csv = 'Date,Day,Start Time,End Time,Employee,Duration (hours)\n'
 
   schedule.days.forEach(day => {
     day.shifts.forEach(shift => {
       const employeeName = shift.employeeId ? employeeMap.get(shift.employeeId) || 'Unknown' : 'Unassigned'
       const duration = calculateShiftDuration(shift.startTime, shift.endTime)
 
-      csv += `${day.date},${day.dayName},${shift.startTime},${shift.endTime},${shift.position},${employeeName},${duration}\n`
+      csv += `${day.date},${day.dayName},${shift.startTime},${shift.endTime},${employeeName},${duration}\n`
     })
   })
 
@@ -115,9 +114,9 @@ export function getDefaultShiftTemplates(): ShiftTemplate[] {
   // Create 3 shifts for each day (24/7 operation)
   dayNames.forEach(day => {
     shifts.push(
-      { startTime: '07:00', endTime: '15:00', position: 'Morning Shift', dayOfWeek: day },
-      { startTime: '15:00', endTime: '23:00', position: 'Afternoon Shift', dayOfWeek: day },
-      { startTime: '23:00', endTime: '07:00', position: 'Night Shift', dayOfWeek: day }
+      { startTime: '07:00', endTime: '15:00', dayOfWeek: day },
+      { startTime: '15:00', endTime: '23:00', dayOfWeek: day },
+      { startTime: '23:00', endTime: '07:00', dayOfWeek: day }
     )
   })
 

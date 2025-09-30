@@ -90,7 +90,6 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
             <th>Day</th>
             <th>Date</th>
             <th>Time</th>
-            <th>Position</th>
             <th>Employee</th>
             <th>Duration</th>
         </tr>`
@@ -107,7 +106,6 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
             <td>${index === 0 ? day.dayName : ''}</td>
             <td>${index === 0 ? day.date : ''}</td>
             <td>${formatTime(shift.startTime)} - ${formatTime(shift.endTime)}</td>
-            <td>${shift.position}</td>
             <td>${employeeName}</td>
             <td>${duration}h</td>
         </tr>`
@@ -269,9 +267,6 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
                               {formatTime(shift.startTime)} - {formatTime(shift.endTime)}
                             </span>
                             <span className="text-sm text-gray-500">({duration}h)</span>
-                          </div>
-                          <div className="px-2 py-1 bg-gray-100 rounded text-sm">
-                            {shift.position}
                           </div>
                         </div>
 

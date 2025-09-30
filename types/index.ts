@@ -11,7 +11,6 @@ export interface Shift {
   id: string
   startTime: string
   endTime: string
-  position: string
   employeeId?: string
   date: string
   isAssigned: boolean
@@ -38,6 +37,5 @@ export type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Frida
 export interface ShiftTemplate {
   startTime: string
   endTime: string
-  position: string
   dayOfWeek: DayOfWeek
 }
