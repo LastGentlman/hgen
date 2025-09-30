@@ -93,15 +93,16 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
   }
 
   const handleEmployeeShiftChange = (employeeId: string, shiftType: ShiftType) => {
-    const updatedEmployees = employees.map(emp =>
-      emp.id === employeeId ? { ...emp, assignedShift: shiftType } : emp
-    )
+    // Find the employee and update their shift
+    const employee = employees.find(emp => emp.id === employeeId)
+    if (!employee) return
 
-    // Update in storage
-    updatedEmployees.forEach(emp => {
-      storage.updateEmployee(emp.id, emp)
-    })
+    const updatedEmployee = { ...employee, assignedShift: shiftType }
 
+    // Update only this employee in storage
+    storage.updateEmployee(employeeId, updatedEmployee)
+
+    // Trigger update in parent to refresh employee list
     onUpdate()
   }
 

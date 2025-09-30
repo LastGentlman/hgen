@@ -41,6 +41,9 @@ export default function Home() {
     const updatedSchedules = storage.getSchedules()
     setSchedules(updatedSchedules)
 
+    // Also refresh employees in case shift assignments changed
+    setEmployees(storage.getEmployees())
+
     // Update active schedule if it was modified
     if (activeSchedule) {
       const updated = updatedSchedules.find(s => s.id === activeSchedule.id)
