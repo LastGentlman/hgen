@@ -57,7 +57,8 @@ export function generateWeeklySchedule(
       startTime: template.startTime,
       endTime: template.endTime,
       date: dateStr,
-      isAssigned: false
+      isAssigned: false,
+      status: 'empty' as const
     }))
 
     days.push({
@@ -78,34 +79,6 @@ export function generateWeeklySchedule(
   }
 }
 
-export function exportToCSV(schedule: Schedule, employees: Employee[]): string {
-  const employeeMap = new Map(employees.map(emp => [emp.id, emp.name]))
-
-  let csv = 'Date,Day,Start Time,End Time,Employee,Duration (hours)\n'
-
-  schedule.days.forEach(day => {
-    day.shifts.forEach(shift => {
-      const employeeName = shift.employeeId ? employeeMap.get(shift.employeeId) || 'Unknown' : 'Unassigned'
-      const duration = calculateShiftDuration(shift.startTime, shift.endTime)
-
-      csv += `${day.date},${day.dayName},${shift.startTime},${shift.endTime},${employeeName},${duration}\n`
-    })
-  })
-
-  return csv
-}
-
-export function downloadFile(content: string, filename: string, type: string): void {
-  const blob = new Blob([content], { type })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
-}
 
 export function getDefaultShiftTemplates(): ShiftTemplate[] {
   const shifts: ShiftTemplate[] = []

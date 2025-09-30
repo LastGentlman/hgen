@@ -7,6 +7,8 @@ export interface Employee {
   phone?: string
 }
 
+export type ShiftStatus = 'assigned' | 'rest' | 'vacation' | 'sick' | 'absent' | 'empty'
+
 export interface Shift {
   id: string
   startTime: string
@@ -14,6 +16,7 @@ export interface Shift {
   employeeId?: string
   date: string
   isAssigned: boolean
+  status: ShiftStatus
 }
 
 export interface ScheduleDay {

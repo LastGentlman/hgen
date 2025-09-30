@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
-import { Employee, Schedule, Shift } from '@/types'
+import { useState, useRef } from 'react'
+import { Employee, Schedule, Shift, ShiftStatus } from '@/types'
 import { storage } from '@/lib/storage'
-import { formatTime, calculateShiftDuration, exportToCSV, downloadFile } from '@/lib/utils'
-import { User, Clock, Download, FileText, ChevronDown, ChevronUp } from 'lucide-react'
+import { formatTime, calculateShiftDuration } from '@/lib/utils'
+import { User, Clock, Download, FileText } from 'lucide-react'
+import jsPDF from 'jspdf'
+import html2canvas from 'html2canvas'
 
 interface ScheduleViewProps {
   schedule: Schedule | null
@@ -14,9 +16,18 @@ interface ScheduleViewProps {
   onUpdate: () => void
 }
 
+const STATUS_CONFIG = {
+  assigned: { label: 'Assigned', bg: 'bg-white', text: 'text-gray-900', border: 'border-gray-300' },
+  rest: { label: 'REST', bg: 'bg-amber-700', text: 'text-white', border: 'border-amber-800' },
+  vacation: { label: 'VAC', bg: 'bg-blue-600', text: 'text-white', border: 'border-blue-700' },
+  sick: { label: 'SICK', bg: 'bg-red-600', text: 'text-white', border: 'border-red-700' },
+  absent: { label: 'ABS', bg: 'bg-orange-600', text: 'text-white', border: 'border-orange-700' },
+  empty: { label: 'Empty', bg: 'bg-gray-50', text: 'text-gray-400', border: 'border-gray-200' }
+}
+
 export default function ScheduleView({ schedule, employees, schedules, onScheduleSelect, onUpdate }: ScheduleViewProps) {
   const [selectedScheduleId, setSelectedScheduleId] = useState(schedule?.id || '')
-  const [assigningShift, setAssigningShift] = useState<{ dayIndex: number; shiftIndex: number } | null>(null)
+  const scheduleRef = useRef<HTMLDivElement>(null)
 
   const employeeMap = new Map(employees.map(emp => [emp.id, emp]))
 
@@ -38,14 +49,32 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
       // Unassign
       shift.employeeId = undefined
       shift.isAssigned = false
+      shift.status = 'empty'
     } else {
       shift.employeeId = employeeId
       shift.isAssigned = true
+      shift.status = 'assigned'
     }
 
     storage.updateSchedule(schedule.id, updatedSchedule)
     onUpdate()
-    setAssigningShift(null)
+  }
+
+  const handleStatusChange = (dayIndex: number, shiftIndex: number, status: ShiftStatus) => {
+    if (!schedule) return
+
+    const updatedSchedule = { ...schedule }
+    const shift = updatedSchedule.days[dayIndex].shifts[shiftIndex]
+
+    shift.status = status
+    shift.isAssigned = status === 'assigned'
+
+    if (status === 'empty') {
+      shift.employeeId = undefined
+    }
+
+    storage.updateSchedule(schedule.id, updatedSchedule)
+    onUpdate()
   }
 
   const getAvailableEmployees = (dayName: string, currentEmployeeId?: string) => {
@@ -54,70 +83,45 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
     )
   }
 
-  const exportToCSVFile = () => {
-    if (!schedule) return
-    const csv = exportToCSV(schedule, employees)
-    downloadFile(csv, `${schedule.name}.csv`, 'text/csv')
-  }
+  const exportToPDF = async () => {
+    if (!schedule || !scheduleRef.current) return
 
-  const exportToHTML = () => {
-    if (!schedule) return
-
-    let html = `
-<!DOCTYPE html>
-<html>
-<head>
-    <title>${schedule.name}</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-        th { background-color: #f2f2f2; font-weight: bold; }
-        .unassigned { background-color: #ffe6e6; }
-        .day-header { background-color: #e3f2fd; font-weight: bold; }
-        h1 { color: #1976d2; }
-        .summary { background-color: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-    </style>
-</head>
-<body>
-    <h1>${schedule.name}</h1>
-    <div class="summary">
-        <p><strong>Period:</strong> ${new Date(schedule.startDate).toLocaleDateString()} - ${new Date(schedule.endDate).toLocaleDateString()}</p>
-        <p><strong>Generated:</strong> ${new Date().toLocaleDateString()}</p>
-    </div>
-    <table>
-        <tr>
-            <th>Day</th>
-            <th>Date</th>
-            <th>Time</th>
-            <th>Employee</th>
-            <th>Duration</th>
-        </tr>`
-
-    schedule.days.forEach(day => {
-      day.shifts.forEach((shift, index) => {
-        const employee = shift.employeeId ? employeeMap.get(shift.employeeId) : null
-        const employeeName = employee ? employee.name : 'UNASSIGNED'
-        const duration = calculateShiftDuration(shift.startTime, shift.endTime)
-        const cssClass = shift.isAssigned ? '' : 'unassigned'
-
-        html += `
-        <tr class="${cssClass}">
-            <td>${index === 0 ? day.dayName : ''}</td>
-            <td>${index === 0 ? day.date : ''}</td>
-            <td>${formatTime(shift.startTime)} - ${formatTime(shift.endTime)}</td>
-            <td>${employeeName}</td>
-            <td>${duration}h</td>
-        </tr>`
+    try {
+      const canvas = await html2canvas(scheduleRef.current, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
       })
-    })
 
-    html += `
-    </table>
-</body>
-</html>`
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      })
 
-    downloadFile(html, `${schedule.name}.html`, 'text/html')
+      const imgWidth = 210 // A4 width in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width
+
+      let heightLeft = imgHeight
+      let position = 0
+
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+      heightLeft -= 297
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight
+        pdf.addPage()
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+        heightLeft -= 297
+      }
+
+      pdf.save(`${schedule.name}.pdf`)
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      alert('Error generating PDF. Please try again.')
+    }
   }
 
   if (!schedule) {
@@ -175,22 +179,13 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
               {totalShifts > 0 ? Math.round((assignedShifts / totalShifts) * 100) : 0}% complete
             </div>
           </div>
-          <div className="flex space-x-2">
-            <button
-              onClick={exportToCSVFile}
-              className="btn btn-secondary flex items-center space-x-2"
-            >
-              <Download className="h-4 w-4" />
-              <span>CSV</span>
-            </button>
-            <button
-              onClick={exportToHTML}
-              className="btn btn-secondary flex items-center space-x-2"
-            >
-              <Download className="h-4 w-4" />
-              <span>HTML</span>
-            </button>
-          </div>
+          <button
+            onClick={exportToPDF}
+            className="btn btn-primary flex items-center space-x-2"
+          >
+            <Download className="h-4 w-4" />
+            <span>Export PDF</span>
+          </button>
         </div>
       </div>
 
@@ -228,7 +223,7 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
       </div>
 
       {/* Schedule Grid */}
-      <div className="space-y-4">
+      <div ref={scheduleRef} className="space-y-4">
         {schedule.days.map((day, dayIndex) => (
           <div key={day.date} className="card">
             <div className="flex items-center justify-between mb-4">
@@ -250,14 +245,12 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
                   const duration = calculateShiftDuration(shift.startTime, shift.endTime)
                   const availableEmployees = getAvailableEmployees(day.dayName, shift.employeeId)
 
+                  const statusConfig = STATUS_CONFIG[shift.status]
+
                   return (
                     <div
                       key={shift.id}
-                      className={`p-4 rounded-lg border-2 transition-colors ${
-                        shift.isAssigned
-                          ? 'border-green-200 bg-green-50'
-                          : 'border-red-200 bg-red-50'
-                      }`}
+                      className={`p-4 rounded-lg border-2 transition-colors ${statusConfig.border} ${statusConfig.bg}`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-4">
@@ -274,14 +267,27 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
                           {employee ? (
                             <div className="flex items-center space-x-2">
                               <User className="h-4 w-4 text-green-600" />
-                              <span className="font-medium text-green-700">{employee.name}</span>
+                              <span className={`font-medium ${statusConfig.text}`}>{employee.name}</span>
                               {employee.department && (
                                 <span className="text-sm text-gray-500">({employee.department})</span>
                               )}
                             </div>
                           ) : (
-                            <span className="text-red-600 font-medium">UNASSIGNED</span>
+                            <span className="text-gray-400 font-medium">UNASSIGNED</span>
                           )}
+
+                          <select
+                            value={shift.status}
+                            onChange={(e) => handleStatusChange(dayIndex, shiftIndex, e.target.value as ShiftStatus)}
+                            className="text-sm border border-gray-300 rounded px-2 py-1"
+                          >
+                            <option value="assigned">Assigned</option>
+                            <option value="rest">Rest</option>
+                            <option value="vacation">Vacation</option>
+                            <option value="sick">Sick</option>
+                            <option value="absent">Absent</option>
+                            <option value="empty">Empty</option>
+                          </select>
 
                           <select
                             value={shift.employeeId || ''}
