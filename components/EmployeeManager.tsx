@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Employee } from '@/types'
 import { storage } from '@/lib/storage'
 import { generateId } from '@/lib/utils'
-import { Plus, Edit2, Trash2, Save, X } from 'lucide-react'
+import { Plus, Edit2, Trash2, Save, X, Users } from 'lucide-react'
 
 interface EmployeeManagerProps {
   onUpdate: () => void
