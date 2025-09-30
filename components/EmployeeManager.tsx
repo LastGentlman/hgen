@@ -27,7 +27,6 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
     setFormData({
       name: '',
       phone: '',
-      maxHoursPerWeek: 40,
       availableDays: [...defaultDays]
     })
   }
@@ -44,7 +43,6 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
       id: editingId || generateId(),
       name: formData.name.trim(),
       phone: formData.phone?.trim(),
-      maxHoursPerWeek: 40,
       availableDays: [...defaultDays]
     }
 
@@ -101,7 +99,6 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
         const newEmployees: Employee[] = namesToImport.map(name => ({
           id: generateId(),
           name: typeof name === 'string' ? name : String(name),
-          maxHoursPerWeek: 40,
           availableDays: [...defaultDays]
         }))
 
