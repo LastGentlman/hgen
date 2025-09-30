@@ -225,8 +225,10 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
     )
   }
 
-  // Unassigned employees section
-  const unassignedEmployees = employees.filter(emp => !emp.assignedShift || emp.assignedShift === 'unassigned')
+  // Unassigned employees section - only show if there are employees AND schedule exists
+  const unassignedEmployees = schedule && employees.length > 0
+    ? employees.filter(emp => !emp.assignedShift || emp.assignedShift === 'unassigned')
+    : []
 
   return (
     <div className="space-y-4">
@@ -241,13 +243,18 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
         </button>
       </div>
 
-      {/* Unassigned Employees Warning */}
-      {unassignedEmployees.length > 0 && (
+      {/* Unassigned Employees Warning - Only show if there are actually unassigned employees */}
+      {schedule && unassignedEmployees.length > 0 && (
         <div className="card bg-yellow-50 border-yellow-200">
           <div className="flex items-start space-x-3">
             <Users className="h-5 w-5 text-yellow-600 mt-1" />
             <div className="flex-1">
-              <h3 className="font-medium text-yellow-800 mb-2">Empleados sin turno asignado ({unassignedEmployees.length})</h3>
+              <h3 className="font-medium text-yellow-800 mb-2">
+                Empleados sin turno asignado ({unassignedEmployees.length})
+              </h3>
+              <p className="text-sm text-yellow-700 mb-3">
+                Asigna un turno a cada empleado para que aparezcan en la tabla correspondiente.
+              </p>
               <div className="space-y-2">
                 {unassignedEmployees.map(emp => (
                   <div key={emp.id} className="flex items-center justify-between bg-white p-2 rounded border border-yellow-200">

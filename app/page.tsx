@@ -5,11 +5,10 @@ import { Employee, Schedule } from '@/types'
 import { storage } from '@/lib/storage'
 import EmployeeManager from '@/components/EmployeeManager'
 import ScheduleManager from '@/components/ScheduleManager'
-import ScheduleView from '@/components/ScheduleView'
 import GridView from '@/components/GridView'
-import { Calendar, Users, Settings, Grid3x3 } from 'lucide-react'
+import { Calendar, Users, Grid3x3 } from 'lucide-react'
 
-type ActiveTab = 'employees' | 'schedules' | 'view' | 'grid'
+type ActiveTab = 'employees' | 'schedules' | 'grid'
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('grid')
@@ -54,8 +53,7 @@ export default function Home() {
   const tabs = [
     { id: 'employees' as const, label: 'Employees', icon: Users },
     { id: 'schedules' as const, label: 'Schedules', icon: Calendar },
-    { id: 'view' as const, label: 'View Schedule', icon: Settings },
-    { id: 'grid' as const, label: 'Grid View', icon: Grid3x3 }
+    { id: 'grid' as const, label: 'Schedule Grid', icon: Grid3x3 }
   ]
 
   return (
@@ -116,16 +114,6 @@ export default function Home() {
             employees={employees}
             onUpdate={handleScheduleUpdate}
             onScheduleSelect={setActiveSchedule}
-          />
-        )}
-
-        {activeTab === 'view' && (
-          <ScheduleView
-            schedule={activeSchedule}
-            employees={employees}
-            schedules={schedules}
-            onScheduleSelect={setActiveSchedule}
-            onUpdate={handleScheduleUpdate}
           />
         )}
 
