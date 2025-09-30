@@ -1,3 +1,5 @@
+export type ShiftType = 'morning' | 'afternoon' | 'night' | 'unassigned'
+
 export interface Employee {
   id: string
   name: string
@@ -5,6 +7,7 @@ export interface Employee {
   availableDays: string[]
   email?: string
   phone?: string
+  assignedShift?: ShiftType
 }
 
 export type ShiftStatus = 'assigned' | 'rest' | 'vacation' | 'sick' | 'absent' | 'empty'

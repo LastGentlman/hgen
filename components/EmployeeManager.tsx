@@ -28,7 +28,8 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
     setFormData({
       name: '',
       phone: '',
-      availableDays: [...defaultDays]
+      availableDays: [...defaultDays],
+      assignedShift: 'unassigned'
     })
   }
 
@@ -44,7 +45,8 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
       id: editingId || generateId(),
       name: formData.name.trim(),
       phone: formData.phone?.trim(),
-      availableDays: [...defaultDays]
+      availableDays: [...defaultDays],
+      assignedShift: (formData.assignedShift as any) || 'unassigned'
     }
 
     if (editingId) {
@@ -100,7 +102,8 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
         const newEmployees: Employee[] = namesToImport.map(name => ({
           id: generateId(),
           name: typeof name === 'string' ? name : String(name),
-          availableDays: [...defaultDays]
+          availableDays: [...defaultDays],
+          assignedShift: 'unassigned' as const
         }))
 
         // Add all new employees
@@ -197,6 +200,22 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
                 placeholder="Enter phone number"
               />
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Assigned Shift
+              </label>
+              <select
+                value={(formData.assignedShift as any) || 'unassigned'}
+                onChange={(e) => setFormData({ ...formData, assignedShift: e.target.value as any })}
+                className="input"
+              >
+                <option value="unassigned">Sin asignar</option>
+                <option value="morning">Turno 1 (7:00 - 15:00)</option>
+                <option value="afternoon">Turno 2 (15:00 - 23:00)</option>
+                <option value="night">Turno 3 (23:00 - 7:00)</option>
+              </select>
+            </div>
           </div>
 
           <div className="flex items-center space-x-3 mt-6">
@@ -228,6 +247,13 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
                 <h3 className="font-medium text-gray-900">{employee.name}</h3>
                 {employee.phone && (
                   <p className="text-sm text-gray-600">📞 {employee.phone}</p>
+                )}
+                {employee.assignedShift && employee.assignedShift !== 'unassigned' && (
+                  <p className="text-xs text-primary-600 font-medium mt-1">
+                    {employee.assignedShift === 'morning' && '🌅 Turno 1 (7-15)'}
+                    {employee.assignedShift === 'afternoon' && '☀️ Turno 2 (15-23)'}
+                    {employee.assignedShift === 'night' && '🌙 Turno 3 (23-7)'}
+                  </p>
                 )}
               </div>
               <div className="flex items-center space-x-1">
