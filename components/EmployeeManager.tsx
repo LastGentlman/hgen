@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Employee } from '@/types'
 import { storage } from '@/lib/storage'
 import { generateId } from '@/lib/utils'
-import { Plus, Edit2, Trash2, Save, X, Users, Upload } from 'lucide-react'
+import { Plus, Edit2, Trash2, Save, X, Users, Upload, ChevronDown, ChevronUp } from 'lucide-react'
 
 interface EmployeeManagerProps {
   onUpdate: () => void
@@ -15,6 +15,7 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formData, setFormData] = useState<Partial<Employee>>({})
+  const [isExpanded, setIsExpanded] = useState(false)
 
   useEffect(() => {
     setEmployees(storage.getEmployees())
@@ -121,29 +122,47 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Employee Management</h2>
-        <div className="flex items-center space-x-2">
-          <label className="btn btn-secondary flex items-center space-x-2 cursor-pointer">
-            <Upload className="h-5 w-5" />
-            <span>Import JSON</span>
-            <input
-              type="file"
-              accept=".json"
-              onChange={handleImportJSON}
-              className="hidden"
-            />
-          </label>
-          <button
-            onClick={handleAdd}
-            className="btn btn-primary flex items-center space-x-2"
-            disabled={isAdding || editingId !== null}
-          >
-            <Plus className="h-5 w-5" />
-            <span>Add Employee</span>
-          </button>
-        </div>
-      </div>
+      <div className="card">
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+        >
+          <div className="flex items-center space-x-3">
+            <Users className="h-6 w-6 text-primary-600" />
+            <div className="text-left">
+              <h2 className="text-xl font-bold text-gray-900">Employee Management</h2>
+              <p className="text-sm text-gray-600">{employees.length} employees</p>
+            </div>
+          </div>
+          {isExpanded ? (
+            <ChevronUp className="h-5 w-5 text-gray-500" />
+          ) : (
+            <ChevronDown className="h-5 w-5 text-gray-500" />
+          )}
+        </button>
+
+        {isExpanded && (
+          <div className="border-t p-6 space-y-6">
+            <div className="flex items-center justify-end space-x-2">
+              <label className="btn btn-secondary flex items-center space-x-2 cursor-pointer">
+                <Upload className="h-5 w-5" />
+                <span>Import JSON</span>
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleImportJSON}
+                  className="hidden"
+                />
+              </label>
+              <button
+                onClick={handleAdd}
+                className="btn btn-primary flex items-center space-x-2"
+                disabled={isAdding || editingId !== null}
+              >
+                <Plus className="h-5 w-5" />
+                <span>Add Employee</span>
+              </button>
+            </div>
 
       {/* Add/Edit Form */}
       {(isAdding || editingId) && (
@@ -232,16 +251,19 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
         ))}
       </div>
 
-      {employees.length === 0 && !isAdding && (
-        <div className="card text-center py-12">
-          <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No employees yet</h3>
-          <p className="text-gray-600 mb-4">Add your first employee to get started with scheduling.</p>
-          <button onClick={handleAdd} className="btn btn-primary">
-            Add First Employee
-          </button>
-        </div>
-      )}
+            {employees.length === 0 && !isAdding && (
+              <div className="text-center py-12">
+                <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No employees yet</h3>
+                <p className="text-gray-600 mb-4">Add your first employee to get started with scheduling.</p>
+                <button onClick={handleAdd} className="btn btn-primary">
+                  Add First Employee
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

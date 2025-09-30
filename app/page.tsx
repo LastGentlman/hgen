@@ -12,14 +12,26 @@ import { Calendar, Users, Settings, Grid3x3 } from 'lucide-react'
 type ActiveTab = 'employees' | 'schedules' | 'view' | 'grid'
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('employees')
+  const [activeTab, setActiveTab] = useState<ActiveTab>('grid')
   const [employees, setEmployees] = useState<Employee[]>([])
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [activeSchedule, setActiveSchedule] = useState<Schedule | null>(null)
 
   useEffect(() => {
-    setEmployees(storage.getEmployees())
-    setSchedules(storage.getSchedules())
+    const loadedEmployees = storage.getEmployees()
+    const loadedSchedules = storage.getSchedules()
+
+    setEmployees(loadedEmployees)
+    setSchedules(loadedSchedules)
+
+    // Auto-select the last created schedule
+    if (loadedSchedules.length > 0) {
+      // Sort by createdAt descending to get the most recent
+      const sortedSchedules = [...loadedSchedules].sort((a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+      setActiveSchedule(sortedSchedules[0])
+    }
   }, [])
 
   const handleEmployeeUpdate = () => {
