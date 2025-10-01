@@ -4,9 +4,11 @@ import { useState, useRef } from 'react'
 import { Employee, Schedule, ShiftStatus, ShiftType } from '@/types'
 import { storage } from '@/lib/storage'
 import { formatTime } from '@/lib/utils'
-import { Download, Grid3x3, Users, ChevronDown, ChevronUp } from 'lucide-react'
+import { Download, Grid3x3, Users, ChevronDown, ChevronUp, GripVertical } from 'lucide-react'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
+import { DndProvider, useDrag, useDrop } from 'react-dnd'
+import { HTML5Backend } from 'react-dnd-html5-backend'
 
 interface GridViewProps {
   schedule: Schedule | null
@@ -29,6 +31,98 @@ const SHIFT_LABELS = {
   morning: { label: 'TURNO 1 DE 07:00 A 15:00 HRS', time: '07:00-15:00' },
   afternoon: { label: 'TURNO 2 DE 15:00 A 23:00 HRS', time: '15:00-23:00' },
   night: { label: 'TURNO 3 DE 23:00 A 07:00 HRS', time: '23:00-07:00' }
+}
+
+const ItemTypes = {
+  EMPLOYEE: 'employee'
+}
+
+// Draggable Employee Card Component
+interface DraggableEmployeeProps {
+  employee: Employee
+  onAssignShift: (employeeId: string, shiftType: ShiftType) => void
+}
+
+function DraggableEmployee({ employee, onAssignShift }: DraggableEmployeeProps) {
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: ItemTypes.EMPLOYEE,
+    item: { employee },
+    collect: (monitor) => ({
+      isDragging: !!monitor.isDragging()
+    })
+  }), [employee])
+
+  return (
+    <div
+      ref={drag as any}
+      className="flex items-center justify-between bg-white p-3 rounded border border-yellow-200 cursor-move hover:border-yellow-400 transition-all"
+      style={{ opacity: isDragging ? 0.5 : 1 }}
+    >
+      <div className="flex items-center space-x-2">
+        <GripVertical className="h-4 w-4 text-gray-400" />
+        <span className="font-medium">{employee.name}</span>
+      </div>
+      <select
+        value={employee.assignedShift || 'unassigned'}
+        onChange={(e) => onAssignShift(employee.id, e.target.value as ShiftType)}
+        onClick={(e) => e.stopPropagation()}
+        className="text-sm border border-gray-300 rounded px-2 py-1"
+      >
+        <option value="unassigned">Sin asignar</option>
+        <option value="morning">Turno 1 (7-15)</option>
+        <option value="afternoon">Turno 2 (15-23)</option>
+        <option value="night">Turno 3 (23-7)</option>
+      </select>
+    </div>
+  )
+}
+
+// Droppable Shift Header Component
+interface ShiftDropZoneProps {
+  shiftType: ShiftType
+  shiftLabel: string
+  employeeCount: number
+  isExpanded: boolean
+  onToggle: () => void
+  onDrop: (employeeId: string, shiftType: ShiftType) => void
+}
+
+function ShiftDropZone({ shiftType, shiftLabel, employeeCount, isExpanded, onToggle, onDrop }: ShiftDropZoneProps) {
+  const [{ isOver, canDrop }, drop] = useDrop(() => ({
+    accept: ItemTypes.EMPLOYEE,
+    drop: (item: { employee: Employee }) => {
+      onDrop(item.employee.id, shiftType)
+    },
+    collect: (monitor) => ({
+      isOver: !!monitor.isOver(),
+      canDrop: !!monitor.canDrop()
+    })
+  }), [shiftType, onDrop])
+
+  const backgroundColor = isOver && canDrop ? '#FDD835' : '#FFEB9C'
+  const borderColor = isOver && canDrop ? '#F57F17' : '#000'
+
+  return (
+    <button
+      ref={drop as any}
+      onClick={onToggle}
+      className="w-full flex items-center justify-between transition-all"
+      style={{
+        backgroundColor,
+        padding: '12px',
+        fontWeight: 'bold',
+        border: `2px solid ${borderColor}`,
+        boxShadow: isOver && canDrop ? '0 4px 12px rgba(0,0,0,0.15)' : 'none'
+      }}
+    >
+      <span>{shiftLabel}</span>
+      <div className="flex items-center space-x-2">
+        {isOver && canDrop && <span className="text-sm text-green-700">⬇️ Soltar aquí</span>}
+        <span className="text-sm">({employeeCount} empleados)</span>
+        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </div>
+    </button>
+  )
 }
 
 export default function GridView({ schedule, employees, onUpdate }: GridViewProps) {
@@ -152,18 +246,15 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
 
     return (
       <div key={shiftType} className="mb-8">
-        {/* Shift Header - Collapsible */}
-        <button
-          onClick={() => toggleShift(shiftType)}
-          className="w-full flex items-center justify-between"
-          style={{ backgroundColor: '#FFEB9C', padding: '12px', fontWeight: 'bold', border: '1px solid #000' }}
-        >
-          <span>{shiftLabel.label}</span>
-          <div className="flex items-center space-x-2">
-            <span className="text-sm">({employeesInShift.length} empleados)</span>
-            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </div>
-        </button>
+        {/* Shift Header - Droppable */}
+        <ShiftDropZone
+          shiftType={shiftType}
+          shiftLabel={shiftLabel.label}
+          employeeCount={employeesInShift.length}
+          isExpanded={isExpanded}
+          onToggle={() => toggleShift(shiftType)}
+          onDrop={handleEmployeeShiftChange}
+        />
 
         {isExpanded && (
           <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #000' }}>
@@ -232,51 +323,44 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
     : []
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Grid View</h2>
-        <button
-          onClick={exportToPDF}
-          className="btn btn-primary flex items-center space-x-2"
-        >
-          <Download className="h-4 w-4" />
-          <span>Export PDF</span>
-        </button>
-      </div>
+    <DndProvider backend={HTML5Backend}>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900">Grid View</h2>
+          <button
+            onClick={exportToPDF}
+            className="btn btn-primary flex items-center space-x-2"
+          >
+            <Download className="h-4 w-4" />
+            <span>Export PDF</span>
+          </button>
+        </div>
 
-      {/* Unassigned Employees Warning - Only show if there are actually unassigned employees */}
-      {schedule && unassignedEmployees.length > 0 && (
-        <div className="card bg-yellow-50 border-yellow-200">
-          <div className="flex items-start space-x-3">
-            <Users className="h-5 w-5 text-yellow-600 mt-1" />
-            <div className="flex-1">
-              <h3 className="font-medium text-yellow-800 mb-2">
-                Empleados sin turno asignado ({unassignedEmployees.length})
-              </h3>
-              <p className="text-sm text-yellow-700 mb-3">
-                Asigna un turno a cada empleado para que aparezcan en la tabla correspondiente.
-              </p>
-              <div className="space-y-2">
-                {unassignedEmployees.map(emp => (
-                  <div key={emp.id} className="flex items-center justify-between bg-white p-2 rounded border border-yellow-200">
-                    <span className="font-medium">{emp.name}</span>
-                    <select
-                      value={emp.assignedShift || 'unassigned'}
-                      onChange={(e) => handleEmployeeShiftChange(emp.id, e.target.value as ShiftType)}
-                      className="text-sm border border-gray-300 rounded px-2 py-1"
-                    >
-                      <option value="unassigned">Sin asignar</option>
-                      <option value="morning">Turno 1 (7-15)</option>
-                      <option value="afternoon">Turno 2 (15-23)</option>
-                      <option value="night">Turno 3 (23-7)</option>
-                    </select>
-                  </div>
-                ))}
+        {/* Unassigned Employees - Draggable */}
+        {schedule && unassignedEmployees.length > 0 && (
+          <div className="card bg-yellow-50 border-yellow-200">
+            <div className="flex items-start space-x-3">
+              <Users className="h-5 w-5 text-yellow-600 mt-1" />
+              <div className="flex-1">
+                <h3 className="font-medium text-yellow-800 mb-2">
+                  Empleados sin turno asignado ({unassignedEmployees.length})
+                </h3>
+                <p className="text-sm text-yellow-700 mb-3">
+                  🖱️ Arrastra cada empleado a un turno o usa el dropdown
+                </p>
+                <div className="space-y-2">
+                  {unassignedEmployees.map(emp => (
+                    <DraggableEmployee
+                      key={emp.id}
+                      employee={emp}
+                      onAssignShift={handleEmployeeShiftChange}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       <div ref={tableRef} className="bg-white p-6">
         {/* Company Header */}
@@ -339,6 +423,7 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </DndProvider>
   )
 }
