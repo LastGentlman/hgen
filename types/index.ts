@@ -10,7 +10,14 @@ export interface Employee {
   assignedShift?: ShiftType
 }
 
-export type ShiftStatus = 'assigned' | 'rest' | 'vacation' | 'sick' | 'absent' | 'empty'
+export type ShiftStatus = 'assigned' | 'rest' | 'vacation' | 'covering' | 'empty'
+
+export interface CoverageInfo {
+  type: 'shift' | 'branch'
+  target: string  // 'morning' | 'afternoon' | 'night' or branch name
+}
+
+export type PositionType = 'C1' | 'C2' | 'C3' | 'EXT'
 
 export interface Shift {
   id: string
@@ -20,6 +27,8 @@ export interface Shift {
   date: string
   isAssigned: boolean
   status?: ShiftStatus
+  coverageInfo?: CoverageInfo
+  position?: PositionType
 }
 
 export interface ScheduleDay {

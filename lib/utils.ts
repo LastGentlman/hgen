@@ -5,6 +5,12 @@ export function generateId(): string {
   return Math.random().toString(36).substr(2, 9)
 }
 
+// Parse date string in local timezone to avoid timezone issues
+export function parseLocalDate(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
 export function formatTime(time: string): string {
   try {
     const [hours, minutes] = time.split(':')
@@ -41,14 +47,37 @@ export function generateWeeklySchedule(
   name: string,
   templates: ShiftTemplate[]
 ): Schedule {
-  const start = new Date(startDate)
+  // Parse date string manually to avoid timezone issues
+  const [year, month, day] = startDate.split('-').map(Number)
+  const start = new Date(year, month - 1, day) // month is 0-indexed
+  const startDay = start.getDate()
 
   const days: ScheduleDay[] = []
-  const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-  for (let i = 0; i < 15; i++) {
+  // Determine if this is first half (1-15) or second half (16-end)
+  let numDays: number
+  let endDate: Date
+
+  if (startDay === 1) {
+    // First half of month: days 1-15
+    numDays = 15
+    endDate = new Date(start.getFullYear(), start.getMonth(), 15)
+  } else if (startDay === 16) {
+    // Second half of month: day 16 to end of month
+    const lastDayOfMonth = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate()
+    numDays = lastDayOfMonth - 15 // 13, 15, or 16 days depending on month
+    endDate = new Date(start.getFullYear(), start.getMonth(), lastDayOfMonth)
+  } else {
+    // Default to 15 days for any other start date
+    numDays = 15
+    endDate = addDays(start, 14)
+  }
+
+  for (let i = 0; i < numDays; i++) {
     const currentDate = addDays(start, i)
-    const dayName = dayNames[i % 7] // Cycle through day names
+    const dayIndex = currentDate.getDay()
+    const dayName = dayNames[dayIndex]
     const dateStr = format(currentDate, 'yyyy-MM-dd')
 
     const dayTemplates = templates.filter(t => t.dayOfWeek === dayName)
@@ -72,7 +101,7 @@ export function generateWeeklySchedule(
     id: generateId(),
     name,
     startDate: format(start, 'yyyy-MM-dd'),
-    endDate: format(addDays(start, 14), 'yyyy-MM-dd'),
+    endDate: format(endDate, 'yyyy-MM-dd'),
     days,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()

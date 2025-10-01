@@ -4,11 +4,11 @@ import { useState, useEffect } from 'react'
 import { Employee, Schedule } from '@/types'
 import { storage } from '@/lib/storage'
 import EmployeeManager from '@/components/EmployeeManager'
-import ScheduleManager from '@/components/ScheduleManager'
+import HistoryManager from '@/components/HistoryManager'
 import GridView from '@/components/GridView'
-import { Calendar, Users, Grid3x3 } from 'lucide-react'
+import { Calendar, Users, Grid3x3, History } from 'lucide-react'
 
-type ActiveTab = 'employees' | 'schedules' | 'grid'
+type ActiveTab = 'employees' | 'history' | 'grid'
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('grid')
@@ -18,17 +18,80 @@ export default function Home() {
 
   useEffect(() => {
     const loadedEmployees = storage.getEmployees()
-    const loadedSchedules = storage.getSchedules()
+    let loadedSchedules = storage.getSchedules()
 
     setEmployees(loadedEmployees)
+
+    // Auto-create schedules if none exist OR if existing schedules are outdated
+    const today = new Date()
+    today.setHours(0, 0, 0, 0) // Reset time to midnight for comparison
+
+    const hasCurrentSchedule = loadedSchedules.some(schedule => {
+      const [year, month, day] = schedule.startDate.split('-').map(Number)
+      const scheduleStart = new Date(year, month - 1, day)
+      const [eYear, eMonth, eDay] = schedule.endDate.split('-').map(Number)
+      const scheduleEnd = new Date(eYear, eMonth - 1, eDay)
+      scheduleStart.setHours(0, 0, 0, 0)
+      scheduleEnd.setHours(0, 0, 0, 0)
+
+      return today >= scheduleStart && today <= scheduleEnd
+    })
+
+    if (!hasCurrentSchedule) {
+      const currentDay = today.getDate()
+
+      // Determine which schedule to create based on current date
+      let startDate: Date
+      let scheduleName: string
+
+      if (currentDay <= 15) {
+        // Create first half schedule (1st to 15th)
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1)
+        scheduleName = `Horario ${today.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 1ra Quincena`
+      } else {
+        // Create second half schedule (16th to end of month)
+        startDate = new Date(today.getFullYear(), today.getMonth(), 16)
+        scheduleName = `Horario ${today.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 2da Quincena`
+      }
+
+      const { generateWeeklySchedule, getDefaultShiftTemplates } = require('@/lib/utils')
+      const templates = getDefaultShiftTemplates()
+      const newSchedule = generateWeeklySchedule(
+        startDate.toISOString().split('T')[0],
+        scheduleName,
+        templates
+      )
+
+      storage.addSchedule(newSchedule)
+      loadedSchedules = storage.getSchedules()
+    }
+
     setSchedules(loadedSchedules)
 
-    // Auto-select the last created schedule
+    // Auto-select the most current schedule (closest to today)
     if (loadedSchedules.length > 0) {
-      // Sort by createdAt descending to get the most recent
-      const sortedSchedules = [...loadedSchedules].sort((a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      )
+      const sortedSchedules = [...loadedSchedules].sort((a, b) => {
+        const [aYear, aMonth, aDay] = a.startDate.split('-').map(Number)
+        const aStart = new Date(aYear, aMonth - 1, aDay).getTime()
+        const [bYear, bMonth, bDay] = b.startDate.split('-').map(Number)
+        const bStart = new Date(bYear, bMonth - 1, bDay).getTime()
+        const todayTime = today.getTime()
+
+        // Prefer schedules that include today
+        const [aEYear, aEMonth, aEDay] = a.endDate.split('-').map(Number)
+        const aEnd = new Date(aEYear, aEMonth - 1, aEDay).getTime()
+        const [bEYear, bEMonth, bEDay] = b.endDate.split('-').map(Number)
+        const bEnd = new Date(bEYear, bEMonth - 1, bEDay).getTime()
+
+        const aIncludes = aStart <= todayTime && aEnd >= todayTime
+        const bIncludes = bStart <= todayTime && bEnd >= todayTime
+
+        if (aIncludes && !bIncludes) return -1
+        if (!aIncludes && bIncludes) return 1
+
+        // Otherwise sort by most recent
+        return bStart - aStart
+      })
       setActiveSchedule(sortedSchedules[0])
     }
   }, [])
@@ -55,7 +118,7 @@ export default function Home() {
 
   const tabs = [
     { id: 'employees' as const, label: 'Employees', icon: Users },
-    { id: 'schedules' as const, label: 'Schedules', icon: Calendar },
+    { id: 'history' as const, label: 'History', icon: History },
     { id: 'grid' as const, label: 'Schedule Grid', icon: Grid3x3 }
   ]
 
@@ -112,11 +175,10 @@ export default function Home() {
           <EmployeeManager onUpdate={handleEmployeeUpdate} />
         )}
 
-        {activeTab === 'schedules' && (
-          <ScheduleManager
-            employees={employees}
-            onUpdate={handleScheduleUpdate}
+        {activeTab === 'history' && (
+          <HistoryManager
             onScheduleSelect={setActiveSchedule}
+            activeScheduleId={activeSchedule?.id || null}
           />
         )}
 

@@ -68,6 +68,18 @@ export const storage = {
     this.saveSchedules(schedules)
   },
 
+  // Clear all data
+  clearAllSchedules(): void {
+    if (typeof window === 'undefined') return
+    localStorage.removeItem(SCHEDULES_KEY)
+  },
+
+  clearAllData(): void {
+    if (typeof window === 'undefined') return
+    localStorage.removeItem(EMPLOYEES_KEY)
+    localStorage.removeItem(SCHEDULES_KEY)
+  },
+
   // Export/Import
   exportData(): string {
     return JSON.stringify({
