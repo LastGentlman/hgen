@@ -1,16 +1,18 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Employee } from '@/types'
+import { Employee, BranchCode, Division } from '@/types'
 import { storage } from '@/lib/storage'
 import { generateId } from '@/lib/utils'
 import { Plus, Edit2, Trash2, Save, X, Users, Upload, ChevronDown, ChevronUp } from 'lucide-react'
 
 interface EmployeeManagerProps {
   onUpdate: () => void
+  branchCode?: BranchCode
+  division?: Division
 }
 
-export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
+export default function EmployeeManager({ onUpdate, branchCode, division }: EmployeeManagerProps) {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -20,6 +22,9 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
   useEffect(() => {
     setEmployees(storage.getEmployees())
   }, [])
+
+  const branchOptions: BranchCode[] = ['001', '002', '003']
+  const divisionOptions: Division[] = ['super', 'gasolinera', 'restaurant', 'limpieza']
 
   const defaultDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
@@ -34,7 +39,9 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
       name: '',
       phone: '',
       availableDays: [...defaultDays],
-      assignedShift: getRandomShift()
+      assignedShift: getRandomShift(),
+      branchCode: branchCode || '001',
+      division: division || 'super'
     })
   }
 
@@ -51,7 +58,9 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
       name: formData.name.trim(),
       phone: formData.phone?.trim(),
       availableDays: [...defaultDays],
-      assignedShift: (formData.assignedShift as any) || 'unassigned'
+      assignedShift: (formData.assignedShift as any) || 'unassigned',
+      branchCode: (formData.branchCode as BranchCode) || branchCode,
+      division: (formData.division as Division) || division
     }
 
     if (editingId) {
@@ -151,6 +160,35 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
 
         {isExpanded && (
           <div className="border-t p-6 space-y-6">
+            {/* Context selectors (read-only when provided by parent) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Sucursal</label>
+                <select
+                  value={branchCode || (formData.branchCode as BranchCode) || '001'}
+                  onChange={(e) => setFormData({ ...formData, branchCode: e.target.value as BranchCode })}
+                  className="input"
+                  disabled={!!branchCode}
+                >
+                  {branchOptions.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">División</label>
+                <select
+                  value={division || (formData.division as Division) || 'super'}
+                  onChange={(e) => setFormData({ ...formData, division: e.target.value as Division })}
+                  className="input"
+                  disabled={!!division}
+                >
+                  {divisionOptions.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <div className="flex items-center justify-end space-x-2">
               <label className="btn btn-secondary flex items-center space-x-2 cursor-pointer">
                 <Upload className="h-5 w-5" />
@@ -205,6 +243,34 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sucursal</label>
+              <select
+                value={(formData.branchCode as BranchCode) || branchCode || '001'}
+                onChange={(e) => setFormData({ ...formData, branchCode: e.target.value as BranchCode })}
+                className="input"
+                disabled={!!branchCode}
+              >
+                {branchOptions.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">División</label>
+              <select
+                value={(formData.division as Division) || division || 'super'}
+                onChange={(e) => setFormData({ ...formData, division: e.target.value as Division })}
+                className="input"
+                disabled={!!division}
+              >
+                {divisionOptions.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Assigned Shift
               </label>
@@ -241,14 +307,30 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
         </div>
       )}
 
-      {/* Employee List */}
+      {/* Employee List (filtered by context when provided) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {employees.map((employee) => (
+        {employees
+          .filter(emp => {
+            // If context is provided, filter by it. If not, show all
+            if (branchCode && emp.branchCode && emp.branchCode !== branchCode) return false
+            if (division && emp.division && emp.division !== division) return false
+            // When employees are not tagged yet, include them
+            return true
+          })
+          .map((employee) => (
           <div key={employee.id}>
             <div className="card">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1">
                   <h3 className="font-medium text-gray-900">{employee.name}</h3>
+                  <div className="mt-1 flex flex-wrap gap-2 text-xs">
+                    {employee.branchCode && (
+                      <span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded border">Sucursal {employee.branchCode}</span>
+                    )}
+                    {employee.division && (
+                      <span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded border capitalize">{employee.division}</span>
+                    )}
+                  </div>
                   {employee.phone && (
                     <p className="text-sm text-gray-600">📞 {employee.phone}</p>
                   )}
@@ -309,6 +391,34 @@ export default function EmployeeManager({ onUpdate }: EmployeeManagerProps) {
                       className="input"
                       placeholder="Enter phone number"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Sucursal</label>
+                    <select
+                      value={(formData.branchCode as BranchCode) || employee.branchCode || branchCode || '001'}
+                      onChange={(e) => setFormData({ ...formData, branchCode: e.target.value as BranchCode })}
+                      className="input"
+                      disabled={!!branchCode}
+                    >
+                      {branchOptions.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">División</label>
+                    <select
+                      value={(formData.division as Division) || employee.division || division || 'super'}
+                      onChange={(e) => setFormData({ ...formData, division: e.target.value as Division })}
+                      className="input"
+                      disabled={!!division}
+                    >
+                      {divisionOptions.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>
