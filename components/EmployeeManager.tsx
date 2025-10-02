@@ -117,7 +117,9 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
           id: generateId(),
           name: typeof name === 'string' ? name : String(name),
           availableDays: [...defaultDays],
-          assignedShift: getRandomShift()
+          assignedShift: getRandomShift(),
+          branchCode: branchCode || '001',
+          division: division || 'super'
         }))
 
         // Add all new employees
@@ -311,10 +313,10 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {employees
           .filter(emp => {
-            // If context is provided, filter by it. If not, show all
-            if (branchCode && emp.branchCode && emp.branchCode !== branchCode) return false
-            if (division && emp.division && emp.division !== division) return false
-            // When employees are not tagged yet, include them
+            // Enforce strict filtering when context is provided
+            if (branchCode && division) {
+              return emp.branchCode === branchCode && emp.division === division
+            }
             return true
           })
           .map((employee) => (
