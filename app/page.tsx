@@ -282,6 +282,39 @@ export default function Home() {
                 ))}
               </select>
             </div>
+
+            {/* Navigation items */}
+            <div className="pt-3 border-t">
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => { setActiveTab('employees'); setIsMenuOpen(false) }}
+                  className={`flex items-center justify-center space-x-1 py-2 rounded border text-sm ${
+                    activeTab === 'employees' ? 'bg-primary-50 text-primary-700 border-primary-200' : 'bg-white text-gray-700 border-gray-200'
+                  }`}
+                >
+                  <Users className="h-4 w-4" />
+                  <span>Empleados</span>
+                </button>
+                <button
+                  onClick={() => { setActiveTab('history'); setIsMenuOpen(false) }}
+                  className={`flex items-center justify-center space-x-1 py-2 rounded border text-sm ${
+                    activeTab === 'history' ? 'bg-primary-50 text-primary-700 border-primary-200' : 'bg-white text-gray-700 border-gray-200'
+                  }`}
+                >
+                  <History className="h-4 w-4" />
+                  <span>Historial</span>
+                </button>
+                <button
+                  onClick={() => { setActiveTab('grid'); setIsMenuOpen(false) }}
+                  className={`flex items-center justify-center space-x-1 py-2 rounded border text-sm ${
+                    activeTab === 'grid' ? 'bg-primary-50 text-primary-700 border-primary-200' : 'bg-white text-gray-700 border-gray-200'
+                  }`}
+                >
+                  <Grid3x3 className="h-4 w-4" />
+                  <span>Grid</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -333,6 +366,8 @@ export default function Home() {
               (!emp.branchCode || emp.branchCode === branchCode) && (!emp.division || emp.division === division)
             )}
             onUpdate={handleScheduleUpdate}
+            branchCode={branchCode}
+            division={division}
           />
         )}
       </main>
