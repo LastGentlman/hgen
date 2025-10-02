@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Employee, Schedule, ShiftStatus, ShiftType, CoverageInfo, PositionType } from '@/types'
+import { Employee, Schedule, ShiftStatus, ShiftType, CoverageInfo, PositionType, BranchCode, Division } from '@/types'
 import { storage } from '@/lib/storage'
 import { formatTime, generateWeeklySchedule, getDefaultShiftTemplates, parseLocalDate } from '@/lib/utils'
 import { Download, Plus } from 'lucide-react'
@@ -14,6 +14,8 @@ interface GridViewProps {
   schedule: Schedule | null
   employees: Employee[]
   onUpdate: () => void
+  branchCode?: BranchCode
+  division?: Division
 }
 
 const STATUS_CONFIG = {
@@ -538,7 +540,7 @@ function ShiftRowContainer({ shiftType, children, onDrop }: ShiftRowContainerPro
   )
 }
 
-export default function GridView({ schedule, employees, onUpdate }: GridViewProps) {
+export default function GridView({ schedule, employees, onUpdate, branchCode, division }: GridViewProps) {
   const [companyName, setCompanyName] = useState('MI EMPRESA')
   const [isEditingCompany, setIsEditingCompany] = useState(false)
   const [coverageMenu, setCoverageMenu] = useState<{
@@ -566,6 +568,13 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
   const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set())
 
   const tableRef = useRef<HTMLDivElement>(null)
+
+  // Update the visible title based on selected division/branch (e.g., SUPER 001)
+  useEffect(() => {
+    const divisionLabel = (division || 'super').toUpperCase()
+    const branchLabel = branchCode || '001'
+    setCompanyName(`${divisionLabel} ${branchLabel}`)
+  }, [branchCode, division])
 
   // Auto-assign shifts and ensure unique positions per shift type (not globally)
   useEffect(() => {
@@ -1506,26 +1515,11 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
         {/* Hotkeys moved to bottom legend */}
 
       <div ref={tableRef} className="bg-white p-6">
-        {/* Company Header */}
+        {/* Schedule Context Header */}
         <div className="mb-4" style={{ backgroundColor: '#654321', padding: '20px', textAlign: 'center' }}>
-          {isEditingCompany ? (
-            <input
-              type="text"
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-              onBlur={() => setIsEditingCompany(false)}
-              onKeyDown={(e) => e.key === 'Enter' && setIsEditingCompany(false)}
-              className="text-2xl font-bold text-white bg-transparent border-b-2 border-white text-center outline-none w-full"
-              autoFocus
-            />
-          ) : (
-            <h1
-              onClick={() => setIsEditingCompany(true)}
-              className="text-2xl font-bold text-white cursor-pointer hover:opacity-80"
-            >
-              {companyName}
-            </h1>
-          )}
+          <h1 className="text-2xl font-bold text-white">
+            {companyName}
+          </h1>
           <h2 className="text-lg text-white mt-2">
             ROL DE TURNOS DEL {parseLocalDate(schedule.startDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })} AL {parseLocalDate(schedule.endDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}
           </h2>
