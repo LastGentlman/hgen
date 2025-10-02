@@ -1534,12 +1534,12 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
         {/* Unified Table */}
         <table style={{ width: '100%', borderCollapse: 'collapse', border: '2px solid #000' }}>
           <thead>
-            <tr style={{ backgroundColor: '#E0E0E0' }}>
-              <th style={{ border: '1px solid #000', padding: '8px', width: '150px', fontWeight: 'bold' }}>Nombre</th>
+            <tr style={{ backgroundColor: '#654321' }}>
+              <th style={{ border: '1px solid #000', padding: '8px', width: '150px', fontWeight: 'bold', backgroundColor: '#FFFFFF' }}>Nombre</th>
               {schedule.days.map((day, idx) => (
-                <th key={idx} style={{ border: '1px solid #000', padding: '4px', fontSize: '11px' }}>
+                <th key={idx} style={{ border: '1px solid #000', padding: '4px', fontSize: '11px', color: '#FFFFFF', backgroundColor: '#654321' }}>
                   <div>{parseLocalDate(day.date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })}</div>
-                  <div style={{ fontSize: '10px' }}>{day.dayName.substring(0, 3).toUpperCase()}</div>
+                  <div style={{ fontSize: '10px' }}>{day.dayName.toUpperCase()}</div>
                 </th>
               ))}
             </tr>
