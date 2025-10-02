@@ -18,10 +18,18 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formData, setFormData] = useState<Partial<Employee>>({})
   const [isExpanded, setIsExpanded] = useState(false)
+  const [selectedBranchCode, setSelectedBranchCode] = useState<BranchCode>(branchCode || '001')
+  const [selectedDivision, setSelectedDivision] = useState<Division>(division || 'super')
 
   useEffect(() => {
     setEmployees(storage.getEmployees())
   }, [])
+
+  // Keep local selectors in sync when parent context changes
+  useEffect(() => {
+    if (branchCode) setSelectedBranchCode(branchCode)
+    if (division) setSelectedDivision(division)
+  }, [branchCode, division])
 
   const branchOptions: BranchCode[] = ['001', '002', '003']
   const divisionOptions: Division[] = ['super', 'gasolinera', 'restaurant', 'limpieza']
@@ -40,8 +48,8 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
       phone: '',
       availableDays: [...defaultDays],
       assignedShift: getRandomShift(),
-      branchCode: branchCode || '001',
-      division: division || 'super'
+      branchCode: selectedBranchCode,
+      division: selectedDivision
     })
   }
 
@@ -59,8 +67,8 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
       phone: formData.phone?.trim(),
       availableDays: [...defaultDays],
       assignedShift: (formData.assignedShift as any) || 'unassigned',
-      branchCode: (formData.branchCode as BranchCode) || branchCode,
-      division: (formData.division as Division) || division
+      branchCode: (formData.branchCode as BranchCode) || selectedBranchCode,
+      division: (formData.division as Division) || selectedDivision
     }
 
     if (editingId) {
@@ -118,8 +126,8 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
           name: typeof name === 'string' ? name : String(name),
           availableDays: [...defaultDays],
           assignedShift: getRandomShift(),
-          branchCode: branchCode || '001',
-          division: division || 'super'
+          branchCode: selectedBranchCode,
+          division: selectedDivision
         }))
 
         // Add all new employees
@@ -150,7 +158,12 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
             <Users className="h-6 w-6 text-primary-600" />
             <div className="text-left">
               <h2 className="text-xl font-bold text-gray-900">Employee Management</h2>
-              <p className="text-sm text-gray-600">{employees.length} employees</p>
+              <p className="text-sm text-gray-600">
+                {employees.filter(emp =>
+                  (!emp.branchCode || emp.branchCode === selectedBranchCode) &&
+                  (!emp.division || emp.division === selectedDivision)
+                ).length} employees
+              </p>
             </div>
           </div>
           {isExpanded ? (
@@ -167,10 +180,9 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Sucursal</label>
                 <select
-                  value={branchCode || (formData.branchCode as BranchCode) || '001'}
-                  onChange={(e) => setFormData({ ...formData, branchCode: e.target.value as BranchCode })}
+                  value={selectedBranchCode}
+                  onChange={(e) => setSelectedBranchCode(e.target.value as BranchCode)}
                   className="input"
-                  disabled={!!branchCode}
                 >
                   {branchOptions.map(opt => (
                     <option key={opt} value={opt}>{opt}</option>
@@ -180,10 +192,9 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">División</label>
                 <select
-                  value={division || (formData.division as Division) || 'super'}
-                  onChange={(e) => setFormData({ ...formData, division: e.target.value as Division })}
+                  value={selectedDivision}
+                  onChange={(e) => setSelectedDivision(e.target.value as Division)}
                   className="input"
-                  disabled={!!division}
                 >
                   {divisionOptions.map(opt => (
                     <option key={opt} value={opt}>{opt}</option>
@@ -247,10 +258,9 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Sucursal</label>
               <select
-                value={(formData.branchCode as BranchCode) || branchCode || '001'}
+                value={(formData.branchCode as BranchCode) || selectedBranchCode}
                 onChange={(e) => setFormData({ ...formData, branchCode: e.target.value as BranchCode })}
                 className="input"
-                disabled={!!branchCode}
               >
                 {branchOptions.map(opt => (
                   <option key={opt} value={opt}>{opt}</option>
@@ -261,10 +271,9 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">División</label>
               <select
-                value={(formData.division as Division) || division || 'super'}
+                value={(formData.division as Division) || selectedDivision}
                 onChange={(e) => setFormData({ ...formData, division: e.target.value as Division })}
                 className="input"
-                disabled={!!division}
               >
                 {divisionOptions.map(opt => (
                   <option key={opt} value={opt}>{opt}</option>
@@ -312,13 +321,10 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
       {/* Employee List (filtered by context when provided) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {employees
-          .filter(emp => {
-            // Enforce strict filtering when context is provided
-            if (branchCode && division) {
-              return emp.branchCode === branchCode && emp.division === division
-            }
-            return true
-          })
+          .filter(emp =>
+            (!emp.branchCode || emp.branchCode === selectedBranchCode) &&
+            (!emp.division || emp.division === selectedDivision)
+          )
           .map((employee) => (
           <div key={employee.id}>
             <div className="card">
@@ -398,10 +404,9 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Sucursal</label>
                     <select
-                      value={(formData.branchCode as BranchCode) || employee.branchCode || branchCode || '001'}
+                      value={(formData.branchCode as BranchCode) || employee.branchCode || selectedBranchCode}
                       onChange={(e) => setFormData({ ...formData, branchCode: e.target.value as BranchCode })}
                       className="input"
-                      disabled={!!branchCode}
                     >
                       {branchOptions.map(opt => (
                         <option key={opt} value={opt}>{opt}</option>
@@ -412,10 +417,9 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">División</label>
                     <select
-                      value={(formData.division as Division) || employee.division || division || 'super'}
+                      value={(formData.division as Division) || employee.division || selectedDivision}
                       onChange={(e) => setFormData({ ...formData, division: e.target.value as Division })}
                       className="input"
-                      disabled={!!division}
                     >
                       {divisionOptions.map(opt => (
                         <option key={opt} value={opt}>{opt}</option>
