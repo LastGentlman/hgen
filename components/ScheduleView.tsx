@@ -79,8 +79,19 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
   }
 
   const getAvailableEmployees = (dayName: string, currentEmployeeId?: string) => {
+    // Support both Spanish and English day names for backward compatibility
+    const englishToSpanish: Record<string, string> = {
+      'Monday': 'Lunes',
+      'Tuesday': 'Martes',
+      'Wednesday': 'Miércoles',
+      'Thursday': 'Jueves',
+      'Friday': 'Viernes',
+      'Saturday': 'Sábado',
+      'Sunday': 'Domingo',
+    }
+    const normalizedDay = englishToSpanish[dayName] || dayName
     return employees.filter(emp =>
-      emp.availableDays.includes(dayName) || emp.id === currentEmployeeId
+      emp.availableDays.includes(normalizedDay) || emp.availableDays.includes(dayName) || emp.id === currentEmployeeId
     )
   }
 
@@ -229,7 +240,7 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
           <div key={day.date} className="card">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-lg font-medium text-gray-900">{day.dayName}</h3>
+                <h3 className="text-lg font-medium text-gray-900">{day.dayName.toUpperCase()}</h3>
                 <p className="text-sm text-gray-600">{new Date(day.date).toLocaleDateString()}</p>
               </div>
               <div className="text-sm text-gray-600">

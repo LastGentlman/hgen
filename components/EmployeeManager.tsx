@@ -26,7 +26,7 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
   const branchOptions: BranchCode[] = ['001', '002', '003']
   const divisionOptions: Division[] = ['super', 'gasolinera', 'restaurant', 'limpieza']
 
-  const defaultDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+  const defaultDays = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
   const getRandomShift = (): 'morning' | 'afternoon' | 'night' => {
     const shifts: ('morning' | 'afternoon' | 'night')[] = ['morning', 'afternoon', 'night']
