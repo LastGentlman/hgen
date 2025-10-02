@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Schedule } from '@/types'
+import { Schedule, BranchCode, Division } from '@/types'
 import { storage } from '@/lib/storage'
 import { parseLocalDate } from '@/lib/utils'
 import { History, Eye, Trash2, Calendar, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
@@ -9,9 +9,11 @@ import { History, Eye, Trash2, Calendar, ChevronDown, ChevronUp, AlertTriangle }
 interface HistoryManagerProps {
   onScheduleSelect: (schedule: Schedule) => void
   activeScheduleId: string | null
+  branchCode?: BranchCode
+  division?: Division
 }
 
-export default function HistoryManager({ onScheduleSelect, activeScheduleId }: HistoryManagerProps) {
+export default function HistoryManager({ onScheduleSelect, activeScheduleId, branchCode, division }: HistoryManagerProps) {
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [isExpanded, setIsExpanded] = useState(true)
 
@@ -21,6 +23,12 @@ export default function HistoryManager({ onScheduleSelect, activeScheduleId }: H
 
   const loadSchedules = () => {
     const loadedSchedules = storage.getSchedules()
+      .filter(s => {
+        // If context provided, include only matching schedules (or those untagged for backward compatibility)
+        if (branchCode && s.branchCode && s.branchCode !== branchCode) return false
+        if (division && s.division && s.division !== division) return false
+        return true
+      })
     // Sort by start date descending (most recent first)
     const sortedSchedules = [...loadedSchedules].sort((a, b) =>
       parseLocalDate(b.startDate).getTime() - parseLocalDate(a.startDate).getTime()

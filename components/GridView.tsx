@@ -1450,6 +1450,10 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
       templates
     )
 
+    // Preserve organizational context
+    newSchedule.branchCode = schedule.branchCode
+    newSchedule.division = schedule.division
+
     storage.addSchedule(newSchedule)
     onUpdate()
     alert(`✅ Horario creado: ${scheduleName}`)

@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Employee, Schedule } from '@/types'
+import { Employee, Schedule, BranchCode, Division } from '@/types'
 import { storage } from '@/lib/storage'
 import EmployeeManager from '@/components/EmployeeManager'
 import HistoryManager from '@/components/HistoryManager'
 import GridView from '@/components/GridView'
-import { Calendar, Users, Grid3x3, History } from 'lucide-react'
+import { Calendar, Users, Grid3x3, History, Menu } from 'lucide-react'
 
 type ActiveTab = 'employees' | 'history' | 'grid'
 
@@ -15,6 +15,9 @@ export default function Home() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [activeSchedule, setActiveSchedule] = useState<Schedule | null>(null)
+  const [branchCode, setBranchCode] = useState<BranchCode>('001')
+  const [division, setDivision] = useState<Division>('super')
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   useEffect(() => {
     const loadedEmployees = storage.getEmployees()
@@ -27,6 +30,13 @@ export default function Home() {
     today.setHours(0, 0, 0, 0) // Reset time to midnight for comparison
 
     const hasCurrentSchedule = loadedSchedules.some(schedule => {
+      // Respect context if schedule is tagged; allow untagged for backward compatibility
+      const matchesContext = (
+        (!schedule.branchCode || schedule.branchCode === branchCode) &&
+        (!schedule.division || schedule.division === division)
+      )
+      if (!matchesContext) return false
+
       const [year, month, day] = schedule.startDate.split('-').map(Number)
       const scheduleStart = new Date(year, month - 1, day)
       const [eYear, eMonth, eDay] = schedule.endDate.split('-').map(Number)
@@ -62,6 +72,10 @@ export default function Home() {
         templates
       )
 
+      // Tag schedule to current context for isolation
+      newSchedule.branchCode = branchCode
+      newSchedule.division = division
+
       storage.addSchedule(newSchedule)
       loadedSchedules = storage.getSchedules()
     }
@@ -70,7 +84,13 @@ export default function Home() {
 
     // Auto-select the most current schedule (closest to today)
     if (loadedSchedules.length > 0) {
-      const sortedSchedules = [...loadedSchedules].sort((a, b) => {
+      // Filter by context
+      const contextSchedules = loadedSchedules.filter(s =>
+        (!s.branchCode || s.branchCode === branchCode) && (!s.division || s.division === division)
+      )
+      if (contextSchedules.length === 0) return
+
+      const sortedSchedules = [...contextSchedules].sort((a, b) => {
         const [aYear, aMonth, aDay] = a.startDate.split('-').map(Number)
         const aStart = new Date(aYear, aMonth - 1, aDay).getTime()
         const [bYear, bMonth, bDay] = b.startDate.split('-').map(Number)
@@ -95,6 +115,62 @@ export default function Home() {
       setActiveSchedule(sortedSchedules[0])
     }
   }, [])
+
+  // When context changes, select appropriate schedule or create one if none exists
+  useEffect(() => {
+    const allSchedules = storage.getSchedules()
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    const contextSchedules = allSchedules.filter(s =>
+      (!s.branchCode || s.branchCode === branchCode) && (!s.division || s.division === division)
+    )
+
+    if (contextSchedules.length === 0) {
+      // Create schedule for this context using same logic
+      const currentDay = today.getDate()
+      let startDate: Date
+      let scheduleName: string
+      if (currentDay <= 15) {
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1)
+        scheduleName = `Horario ${today.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 1ra Quincena`
+      } else {
+        startDate = new Date(today.getFullYear(), today.getMonth(), 16)
+        scheduleName = `Horario ${today.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 2da Quincena`
+      }
+      const { generateWeeklySchedule, getDefaultShiftTemplates } = require('@/lib/utils')
+      const templates = getDefaultShiftTemplates()
+      const newSchedule = generateWeeklySchedule(
+        startDate.toISOString().split('T')[0],
+        scheduleName,
+        templates
+      )
+      newSchedule.branchCode = branchCode
+      newSchedule.division = division
+      storage.addSchedule(newSchedule)
+
+      // Refresh state
+      const updatedSchedules = storage.getSchedules()
+      setSchedules(updatedSchedules)
+      setActiveSchedule(newSchedule)
+      return
+    }
+
+    // Pick the one that includes today if possible, else most recent
+    const sorted = [...contextSchedules].sort((a, b) => {
+      const aStart = new Date(a.startDate).getTime()
+      const bStart = new Date(b.startDate).getTime()
+      const aEnd = new Date(a.endDate).getTime()
+      const bEnd = new Date(b.endDate).getTime()
+      const todayTime = today.getTime()
+      const aIncludes = aStart <= todayTime && aEnd >= todayTime
+      const bIncludes = bStart <= todayTime && bEnd >= todayTime
+      if (aIncludes && !bIncludes) return -1
+      if (!aIncludes && bIncludes) return 1
+      return bStart - aStart
+    })
+    setActiveSchedule(sorted[0])
+  }, [branchCode, division])
 
   const handleEmployeeUpdate = () => {
     setEmployees(storage.getEmployees())
@@ -136,16 +212,82 @@ export default function Home() {
               <span className="text-sm text-gray-500">Work Schedule Generator</span>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
+              {/* Context selectors driving the main flow */}
+              <div className="hidden md:flex items-center space-x-2">
+                <label className="text-sm text-gray-600">Sucursal</label>
+                <select
+                  value={branchCode}
+                  onChange={(e) => setBranchCode(e.target.value as BranchCode)}
+                  className="input h-8 py-0 text-sm"
+                >
+                  {(['001','002','003'] as BranchCode[]).map(b => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+                <label className="text-sm text-gray-600">División</label>
+                <select
+                  value={division}
+                  onChange={(e) => setDivision(e.target.value as Division)}
+                  className="input h-8 py-0 text-sm"
+                >
+                  {(['super','gasolinera','restaurant','limpieza'] as Division[]).map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Summary */}
+              <span className="text-sm text-gray-600 hidden md:inline">
                 {employees.length} employees • {schedules.length} schedules
               </span>
+
+              {/* Hamburger for secondary actions */}
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="md:hidden p-2 rounded hover:bg-gray-100"
+                aria-label="Open menu"
+              >
+                <Menu className="h-6 w-6 text-gray-700" />
+              </button>
             </div>
           </div>
         </div>
       </header>
 
+      {/* Mobile hamburger menu content */}
+      {isMenuOpen && (
+        <div className="md:hidden border-b bg-white">
+          <div className="px-4 py-3 space-y-3">
+            <div className="flex items-center space-x-2">
+              <label className="text-sm text-gray-600">Sucursal</label>
+              <select
+                value={branchCode}
+                onChange={(e) => setBranchCode(e.target.value as BranchCode)}
+                className="input h-8 py-0 text-sm"
+              >
+                {(['001','002','003'] as BranchCode[]).map(b => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <label className="text-sm text-gray-600">División</label>
+              <select
+                value={division}
+                onChange={(e) => setDivision(e.target.value as Division)}
+                className="input h-8 py-0 text-sm"
+              >
+                {(['super','gasolinera','restaurant','limpieza'] as Division[]).map(d => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Navigation */}
-      <nav className="bg-white border-b">
+      <nav className="bg-white border-b hidden md:block">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex space-x-8">
             {tabs.map((tab) => {
@@ -172,20 +314,24 @@ export default function Home() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'employees' && (
-          <EmployeeManager onUpdate={handleEmployeeUpdate} />
+          <EmployeeManager onUpdate={handleEmployeeUpdate} branchCode={branchCode} division={division} />
         )}
 
         {activeTab === 'history' && (
           <HistoryManager
             onScheduleSelect={setActiveSchedule}
             activeScheduleId={activeSchedule?.id || null}
+            branchCode={branchCode}
+            division={division}
           />
         )}
 
         {activeTab === 'grid' && (
           <GridView
             schedule={activeSchedule}
-            employees={employees}
+            employees={employees.filter(emp =>
+              (!emp.branchCode || emp.branchCode === branchCode) && (!emp.division || emp.division === division)
+            )}
             onUpdate={handleScheduleUpdate}
           />
         )}
