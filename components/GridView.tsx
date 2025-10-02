@@ -1499,29 +1499,7 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
           </div>
         </div>
 
-        {/* Hotkey Legend */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center space-x-4">
-            <span className="font-semibold text-blue-900">Atajos de teclado:</span>
-            <div className="flex flex-wrap gap-3 text-sm">
-              <span className="bg-white px-2 py-1 rounded border border-blue-300">
-                <kbd className="font-mono font-bold">V</kbd> Vacaciones
-              </span>
-              <span className="bg-white px-2 py-1 rounded border border-blue-300">
-                <kbd className="font-mono font-bold">D</kbd> Descanso
-              </span>
-              <span className="bg-white px-2 py-1 rounded border border-blue-300">
-                <kbd className="font-mono font-bold">C</kbd> Cubriendo
-              </span>
-              <span className="bg-white px-2 py-1 rounded border border-blue-300">
-                <kbd className="font-mono font-bold">Del</kbd> Limpiar
-              </span>
-              <span className="bg-white px-2 py-1 rounded border border-blue-300">
-                <kbd className="font-mono font-bold">Esc</kbd> Deseleccionar
-              </span>
-            </div>
-          </div>
-        </div>
+        {/* Hotkeys moved to bottom legend */}
 
       <div ref={tableRef} className="bg-white p-6">
         {/* Company Header */}
@@ -1747,33 +1725,66 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
           </ShiftRowContainer>
         </table>
 
-        {/* Legend */}
+        {/* Legend + Hotkeys (merged at bottom) */}
         <div className="mt-6 pt-4 border-t">
-          <h3 className="font-bold mb-3 text-center">LEYENDA</h3>
-          <div className="flex flex-wrap gap-4 justify-center">
-            {Object.entries(STATUS_CONFIG).filter(([key]) => key !== 'empty').map(([key, config]) => (
-              <div key={key} className="flex items-center space-x-2">
-                <div
-                  style={{
-                    width: '40px',
-                    height: '30px',
-                    backgroundColor: config.bg,
-                    border: `1px solid ${config.border}`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: config.color,
-                    fontWeight: 'bold',
-                    fontSize: '12px'
-                  }}
-                >
-                  {config.label}
-                </div>
-                <span className="text-sm font-medium">
-                  {key === 'assigned' ? 'Trabajando' : key === 'rest' ? 'Descanso' : key === 'vacation' ? 'Vacaciones' : key === 'covering' ? 'Cubriendo (click derecho)' : ''}
+          <h3 className="font-bold mb-4 text-center">LEYENDA</h3>
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Status legend (only used statuses) */}
+            <div className="flex flex-wrap gap-4 justify-center md:justify-start">
+              {Object.entries(STATUS_CONFIG)
+                .filter(([key]) => ['assigned', 'rest', 'vacation', 'covering'].includes(key))
+                .map(([key, config]) => (
+                  <div key={key} className="flex items-center space-x-2">
+                    <div
+                      style={{
+                        width: '40px',
+                        height: '30px',
+                        backgroundColor: config.bg,
+                        border: `1px solid ${config.border}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: config.color,
+                        fontWeight: 'bold',
+                        fontSize: '12px'
+                      }}
+                    >
+                      {key === 'vacation' ? 'VAC' : config.label}
+                    </div>
+                    <span className="text-sm font-medium">
+                      {key === 'assigned'
+                        ? 'Trabajando'
+                        : key === 'rest'
+                        ? 'Descanso'
+                        : key === 'vacation'
+                        ? 'Vacaciones'
+                        : 'Cubriendo (click derecho)'}
+                    </span>
+                  </div>
+                ))}
+            </div>
+
+            {/* Hotkeys */}
+            <div>
+              <div className="text-sm font-semibold text-gray-700 mb-2">Atajos de teclado</div>
+              <div className="flex flex-wrap gap-3 text-sm">
+                <span className="bg-white px-2 py-1 rounded border border-gray-300">
+                  <kbd className="font-mono font-bold">V</kbd> Vacaciones
+                </span>
+                <span className="bg-white px-2 py-1 rounded border border-gray-300">
+                  <kbd className="font-mono font-bold">D</kbd> Descanso
+                </span>
+                <span className="bg-white px-2 py-1 rounded border border-gray-300">
+                  <kbd className="font-mono font-bold">C</kbd> Cubriendo
+                </span>
+                <span className="bg-white px-2 py-1 rounded border border-gray-300">
+                  <kbd className="font-mono font-bold">Del</kbd> Limpiar
+                </span>
+                <span className="bg-white px-2 py-1 rounded border border-gray-300">
+                  <kbd className="font-mono font-bold">Esc</kbd> Deseleccionar
                 </span>
               </div>
-            ))}
+            </div>
           </div>
         </div>
       </div>
