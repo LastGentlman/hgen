@@ -363,7 +363,7 @@ export default function Home() {
           <GridView
             schedule={activeSchedule}
             employees={employees.filter(emp =>
-              (!emp.branchCode || emp.branchCode === branchCode) && (!emp.division || emp.division === division)
+              emp.branchCode === branchCode && emp.division === division
             )}
             onUpdate={handleScheduleUpdate}
             branchCode={branchCode}
