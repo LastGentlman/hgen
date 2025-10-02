@@ -53,7 +53,7 @@ export function generateWeeklySchedule(
   const startDay = start.getDate()
 
   const days: ScheduleDay[] = []
-  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
 
   // Determine if this is first half (1-15) or second half (16-end)
   let numDays: number
@@ -111,7 +111,7 @@ export function generateWeeklySchedule(
 
 export function getDefaultShiftTemplates(): ShiftTemplate[] {
   const shifts: ShiftTemplate[] = []
-  const dayNames: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+  const dayNames: DayOfWeek[] = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
   // Create 3 shifts for each day (24/7 operation)
   dayNames.forEach(day => {

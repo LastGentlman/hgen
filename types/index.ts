@@ -10,7 +10,7 @@ export interface Employee {
   assignedShift?: ShiftType
 }
 
-export type ShiftStatus = 'assigned' | 'rest' | 'vacation' | 'covering' | 'empty'
+export type ShiftStatus = 'assigned' | 'rest' | 'vacation' | 'sick' | 'absent' | 'covering' | 'empty'
 
 export interface CoverageInfo {
   type: 'shift' | 'branch'
@@ -47,7 +47,7 @@ export interface Schedule {
   updatedAt: string
 }
 
-export type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday'
+export type DayOfWeek = 'Lunes' | 'Martes' | 'Miércoles' | 'Jueves' | 'Viernes' | 'Sábado' | 'Domingo'
 
 export interface ShiftTemplate {
   startTime: string

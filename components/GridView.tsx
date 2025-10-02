@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Employee, Schedule, ShiftStatus, ShiftType, CoverageInfo, PositionType } from '@/types'
 import { storage } from '@/lib/storage'
 import { formatTime, generateWeeklySchedule, getDefaultShiftTemplates, parseLocalDate } from '@/lib/utils'
-import { Download, Edit2, Check, Plus } from 'lucide-react'
+import { Download, Plus } from 'lucide-react'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
@@ -19,7 +19,9 @@ interface GridViewProps {
 const STATUS_CONFIG = {
   assigned: { label: 'X', bg: '#FFFFFF', color: '#000000', border: '#000000' },
   rest: { label: 'DESC', bg: '#8B4513', color: '#FFFFFF', border: '#000000' },
-  vacation: { label: 'VAC', bg: '#4169E1', color: '#FFFFFF', border: '#000000' },
+  vacation: { label: 'VACACIONES', bg: '#000000', color: '#FFFFFF', border: '#000000' },
+  sick: { label: 'ENF', bg: '#DC2626', color: '#FFFFFF', border: '#000000' },
+  absent: { label: 'AUS', bg: '#EA580C', color: '#FFFFFF', border: '#000000' },
   covering: { label: 'CUBRE', bg: '#FFB366', color: '#000000', border: '#000000' },
   empty: { label: '', bg: '#FFFFFF', color: '#000000', border: '#CCCCCC' }
 }
@@ -33,7 +35,8 @@ const SHIFT_LABELS = {
 }
 
 const ItemTypes = {
-  EMPLOYEE_ROW: 'employee_row'
+  EMPLOYEE_ROW: 'employee_row',
+  VACATION_CELL: 'vacation_cell'
 }
 
 // Coverage Menu Component
@@ -160,6 +163,102 @@ function CoverageMenu({ isOpen, position, currentInfo, onSelect, onClose }: Cove
   )
 }
 
+// Draggable Vacation Cell Component
+interface DraggableVacationCellProps {
+  employee: Employee
+  dayIndex: number
+  shiftType: ShiftType
+  status: ShiftStatus
+  config: { label: string; bg: string; color: string; border: string }
+  onCellClick: () => void
+  onContextMenu: (e: React.MouseEvent) => void
+  onVacationDrop: (targetDayIndex: number) => void
+  onCellMouseDown: (e: React.MouseEvent) => void
+  onCellMouseEnter: () => void
+  colSpan?: number
+  isSelected?: boolean
+  isMultiSelected?: boolean
+}
+
+function DraggableVacationCell({ employee, dayIndex, shiftType, status, config, onCellClick, onContextMenu, onVacationDrop, onCellMouseDown, onCellMouseEnter, colSpan = 1, isSelected = false, isMultiSelected = false }: DraggableVacationCellProps) {
+  // Make vacation cells draggable
+  const [{ isDragging }, drag] = useDrag<
+    { employeeId: string; shiftType: ShiftType; sourceDayIndex: number },
+    unknown,
+    { isDragging: boolean }
+  >(() => ({
+    type: ItemTypes.VACATION_CELL,
+    item: { employeeId: employee.id, shiftType, sourceDayIndex: dayIndex },
+    canDrag: status === 'vacation',
+    collect: (monitor) => ({
+      isDragging: !!monitor.isDragging()
+    })
+  }), [employee.id, shiftType, dayIndex, status])
+
+  // Make all cells of this employee droppable for vacation
+  const [{ isOver, canDrop }, drop] = useDrop<
+    { employeeId: string; shiftType: ShiftType; sourceDayIndex: number },
+    unknown,
+    { isOver: boolean; canDrop: boolean }
+  >(() => ({
+    accept: ItemTypes.VACATION_CELL,
+    canDrop: (item: { employeeId: string; shiftType: ShiftType }) => {
+      // Can only drop on same employee and same shift
+      return item.employeeId === employee.id && item.shiftType === shiftType
+    },
+    drop: (item: { employeeId: string; shiftType: ShiftType; sourceDayIndex: number }) => {
+      onVacationDrop(dayIndex)
+    },
+    collect: (monitor) => ({
+      isOver: !!monitor.isOver(),
+      canDrop: !!monitor.canDrop()
+    })
+  }), [employee.id, shiftType, dayIndex])
+
+  const cursor = status === 'covering' ? 'context-menu' : status === 'vacation' ? 'grab' : 'pointer'
+
+  // Multi-selection has priority over drop highlighting
+  let finalBackgroundColor = config.bg
+  if (isMultiSelected) {
+    finalBackgroundColor = '#BFDBFE' // Light blue for multi-selection
+  } else if (isOver && canDrop) {
+    finalBackgroundColor = '#555555'
+  }
+
+  const opacity = isDragging ? 0.5 : 1
+
+  return (
+    <td
+      ref={(node) => {
+        drag(node)
+        drop(node)
+      }}
+      onClick={onCellClick}
+      onContextMenu={onContextMenu}
+      onMouseDown={onCellMouseDown}
+      onMouseEnter={onCellMouseEnter}
+      colSpan={colSpan}
+      style={{
+        border: `1px solid ${config.border}`,
+        backgroundColor: finalBackgroundColor,
+        color: isMultiSelected ? '#1E3A8A' : config.color, // Dark blue text for multi-selection
+        padding: '8px',
+        textAlign: 'center',
+        cursor,
+        fontWeight: 'bold',
+        userSelect: 'none',
+        opacity,
+        outline: isSelected ? '3px solid #3B82F6' : isMultiSelected ? '2px solid #3B82F6' : 'none',
+        outlineOffset: '-3px',
+        position: 'relative',
+        zIndex: isSelected ? 10 : isMultiSelected ? 5 : 1
+      }}
+    >
+      {config.label}
+    </td>
+  )
+}
+
 // Draggable Employee Row Component
 interface DraggableEmployeeRowProps {
   employee: Employee
@@ -170,20 +269,24 @@ interface DraggableEmployeeRowProps {
   onContextMenu: (e: React.MouseEvent, employeeId: string, dayIndex: number, shiftType: ShiftType) => void
   onPositionChange: (employeeId: string, position: PositionType) => void
   getShiftForDay: (dayIndex: number, shiftType: ShiftType, employeeId?: string) => any
-  isEditMode: boolean
+  onVacationDrop: (employeeId: string, dayIndex: number, shiftType: ShiftType) => void
+  onCellMouseDown: (employeeId: string, dayIndex: number, shiftType: ShiftType, e: React.MouseEvent) => void
+  onCellMouseEnter: (employeeId: string, dayIndex: number, shiftType: ShiftType) => void
+  selectedCell: { employeeId: string; dayIndex: number; shiftType: ShiftType } | null
+  selectedCells: Set<string>
   isCoveringRow?: boolean
   coveringDays?: number[]
 }
 
-function DraggableEmployeeRow({ employee, shiftType, schedule, employees, onCellClick, onContextMenu, onPositionChange, getShiftForDay, isEditMode, isCoveringRow = false, coveringDays = [] }: DraggableEmployeeRowProps) {
+function DraggableEmployeeRow({ employee, shiftType, schedule, employees, onCellClick, onContextMenu, onPositionChange, getShiftForDay, onVacationDrop, onCellMouseDown, onCellMouseEnter, selectedCell, selectedCells, isCoveringRow = false, coveringDays = [] }: DraggableEmployeeRowProps) {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: ItemTypes.EMPLOYEE_ROW,
     item: { employee, fromShift: shiftType },
-    canDrag: isEditMode && !isCoveringRow, // Can't drag covering rows
+    canDrag: !isCoveringRow, // Can't drag covering rows
     collect: (monitor) => ({
       isDragging: !!monitor.isDragging()
     })
-  }), [employee, shiftType, isEditMode, isCoveringRow])
+  }), [employee, shiftType, isCoveringRow])
 
   // Get the position from the first shift (all shifts for this employee in this schedule have the same position)
   const firstShift = getShiftForDay(0, shiftType, employee.id)
@@ -205,14 +308,157 @@ function DraggableEmployeeRow({ employee, shiftType, schedule, employees, onCell
     })
     .filter(pos => pos && pos !== 'EXT')
 
+  // Detect vacation blocks for cell merging
+  const detectVacationBlocks = () => {
+    const blocks: Array<{ startDay: number; length: number; dayIndices: number[] }> = []
+    let currentBlock: { startDay: number; dayIndices: number[] } | null = null
+
+    schedule.days.forEach((day, dayIndex) => {
+      const shift = getShiftForDay(dayIndex, shiftType, employee.id)
+      const status: ShiftStatus = shift?.status || 'assigned'
+
+      if (status === 'vacation') {
+        if (!currentBlock) {
+          // Start new vacation block
+          currentBlock = { startDay: dayIndex, dayIndices: [dayIndex] }
+        } else {
+          // Continue current block
+          currentBlock.dayIndices.push(dayIndex)
+        }
+      } else {
+        if (currentBlock) {
+          // End current block
+          blocks.push({
+            startDay: currentBlock.startDay,
+            length: currentBlock.dayIndices.length,
+            dayIndices: currentBlock.dayIndices
+          })
+          currentBlock = null
+        }
+      }
+    })
+
+    // Don't forget last block if schedule ends with vacation
+    if (currentBlock) {
+      const typedBlock = currentBlock as { startDay: number; dayIndices: number[] }
+      blocks.push({
+        startDay: typedBlock.startDay,
+        length: typedBlock.dayIndices.length,
+        dayIndices: typedBlock.dayIndices
+      })
+    }
+
+    return blocks
+  }
+
+  const vacationBlocks = detectVacationBlocks()
+  const skipDays = new Set<number>() // Track which days are already rendered as part of merged cells
+
+  // Mark days that are part of merged vacation blocks (except the first day)
+  vacationBlocks.forEach(block => {
+    for (let i = 1; i < block.length; i++) {
+      skipDays.add(block.dayIndices[i])
+    }
+  })
+
+  const renderCells = () => {
+    const cells: JSX.Element[] = []
+
+    schedule.days.forEach((day, dayIndex) => {
+      if (isCoveringRow) {
+        // For covering rows, show X in days being covered, black box in days not covering
+        const isCoveringThisDay = coveringDays.includes(dayIndex)
+
+        cells.push(
+          <td
+            key={dayIndex}
+            style={{
+              border: '1px solid #000',
+              backgroundColor: isCoveringThisDay ? '#FFFFFF' : '#000000',
+              color: isCoveringThisDay ? '#000000' : '#000000',
+              padding: '8px',
+              textAlign: 'center',
+              cursor: 'default',
+              fontWeight: 'bold',
+              userSelect: 'none'
+            }}
+          >
+            {isCoveringThisDay && 'X'}
+          </td>
+        )
+        return
+      }
+
+      // Skip days that are part of a merged vacation block (except first day)
+      if (skipDays.has(dayIndex)) {
+        return
+      }
+
+      // Check if this day is the start of a vacation block
+      const vacationBlock = vacationBlocks.find(block => block.startDay === dayIndex)
+      const shift = getShiftForDay(dayIndex, shiftType, employee.id)
+      const status: ShiftStatus = shift?.status || 'assigned'
+
+      if (vacationBlock) {
+        // Render merged vacation cell
+        const label = vacationBlock.length <= 2 ? 'VAC' : 'VACACIONES'
+        const config = STATUS_CONFIG['vacation']
+
+        const cellKey = `${employee.id}-${dayIndex}-${shiftType}`
+        cells.push(
+          <DraggableVacationCell
+            key={dayIndex}
+            employee={employee}
+            dayIndex={dayIndex}
+            shiftType={shiftType}
+            status={status}
+            config={{ ...config, label }}
+            onCellClick={() => onCellClick(employee.id, dayIndex, shiftType)}
+            onContextMenu={(e) => onContextMenu(e, employee.id, dayIndex, shiftType)}
+            onVacationDrop={(targetDayIndex) => onVacationDrop(employee.id, targetDayIndex, shiftType)}
+            onCellMouseDown={(e) => onCellMouseDown(employee.id, dayIndex, shiftType, e)}
+            onCellMouseEnter={() => onCellMouseEnter(employee.id, dayIndex, shiftType)}
+            colSpan={vacationBlock.length}
+            isSelected={selectedCell?.employeeId === employee.id && selectedCell?.dayIndex === dayIndex && selectedCell?.shiftType === shiftType}
+            isMultiSelected={selectedCells.has(cellKey)}
+          />
+        )
+      } else {
+        // Render normal cell
+        const config = STATUS_CONFIG[status]
+
+        const cellKey = `${employee.id}-${dayIndex}-${shiftType}`
+        cells.push(
+          <DraggableVacationCell
+            key={dayIndex}
+            employee={employee}
+            dayIndex={dayIndex}
+            shiftType={shiftType}
+            status={status}
+            config={config}
+            onCellClick={() => onCellClick(employee.id, dayIndex, shiftType)}
+            onContextMenu={(e) => onContextMenu(e, employee.id, dayIndex, shiftType)}
+            onVacationDrop={(targetDayIndex) => onVacationDrop(employee.id, targetDayIndex, shiftType)}
+            onCellMouseDown={(e) => onCellMouseDown(employee.id, dayIndex, shiftType, e)}
+            onCellMouseEnter={() => onCellMouseEnter(employee.id, dayIndex, shiftType)}
+            isSelected={selectedCell?.employeeId === employee.id && selectedCell?.dayIndex === dayIndex && selectedCell?.shiftType === shiftType}
+            isMultiSelected={selectedCells.has(cellKey)}
+          />
+        )
+      }
+    })
+
+    return cells
+  }
+
   return (
-    <tr ref={(isEditMode && !isCoveringRow) ? drag as any : null} style={{ opacity: isDragging ? 0.5 : 1 }}>
+    <tr ref={!isCoveringRow ? drag as any : null} style={{ opacity: isDragging ? 0.5 : 1 }}>
       <td style={{
         border: '1px solid #000',
         padding: '8px',
-        backgroundColor: isCoveringRow ? '#E8F5E9' : '#FFEB9C',
+        backgroundColor: '#FFFFFF',
         textAlign: 'left',
-        cursor: isEditMode && !isCoveringRow ? 'move' : 'default',
+        cursor: !isCoveringRow ? 'move' : 'default',
         fontStyle: isCoveringRow ? 'italic' : 'normal',
         fontWeight: 'bold',
         whiteSpace: 'nowrap'
@@ -254,60 +500,7 @@ function DraggableEmployeeRow({ employee, shiftType, schedule, employees, onCell
           </>
         )}
       </td>
-      {schedule.days.map((day, dayIndex) => {
-        if (isCoveringRow) {
-          // For covering rows, show X in days being covered, black box in days not covering
-          const isCoveringThisDay = coveringDays.includes(dayIndex)
-
-          return (
-            <td
-              key={dayIndex}
-              style={{
-                border: '1px solid #000',
-                backgroundColor: isCoveringThisDay ? '#FFFFFF' : '#000000',
-                color: isCoveringThisDay ? '#000000' : '#000000',
-                padding: '8px',
-                textAlign: 'center',
-                cursor: 'default',
-                fontWeight: 'bold',
-                userSelect: 'none'
-              }}
-            >
-              {isCoveringThisDay && 'X'}
-            </td>
-          )
-        }
-
-        // Normal row logic (for employee's assigned shift)
-        // Get the shift specific to this employee
-        const shift = getShiftForDay(dayIndex, shiftType, employee.id)
-
-        // Default status is 'assigned' (working) for employees in their assigned shift
-        const status: ShiftStatus = shift?.status || 'assigned'
-        const config = STATUS_CONFIG[status]
-
-        let cursor: string = status === 'covering' ? 'context-menu' : 'pointer'
-
-        return (
-          <td
-            key={dayIndex}
-            onClick={() => onCellClick(employee.id, dayIndex, shiftType)}
-            onContextMenu={(e) => onContextMenu(e, employee.id, dayIndex, shiftType)}
-            style={{
-              border: `1px solid ${config.border}`,
-              backgroundColor: config.bg,
-              color: config.color,
-              padding: '8px',
-              textAlign: 'center',
-              cursor,
-              fontWeight: 'bold',
-              userSelect: 'none'
-            }}
-          >
-            {config.label}
-          </td>
-        )
-      })}
+      {renderCells()}
     </tr>
   )
 }
@@ -317,10 +510,9 @@ interface ShiftRowContainerProps {
   shiftType: ShiftType
   children: React.ReactNode
   onDrop: (employeeId: string, targetShift: ShiftType) => void
-  isEditMode: boolean
 }
 
-function ShiftRowContainer({ shiftType, children, onDrop, isEditMode }: ShiftRowContainerProps) {
+function ShiftRowContainer({ shiftType, children, onDrop }: ShiftRowContainerProps) {
   const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: ItemTypes.EMPLOYEE_ROW,
     drop: (item: { employee: Employee, fromShift: ShiftType }) => {
@@ -329,18 +521,18 @@ function ShiftRowContainer({ shiftType, children, onDrop, isEditMode }: ShiftRow
       }
     },
     canDrop: (item: { employee: Employee, fromShift: ShiftType }) => {
-      return isEditMode && item.fromShift !== shiftType
+      return item.fromShift !== shiftType
     },
     collect: (monitor) => ({
       isOver: !!monitor.isOver(),
       canDrop: !!monitor.canDrop()
     })
-  }), [shiftType, onDrop, isEditMode])
+  }), [shiftType, onDrop])
 
   const backgroundColor = isOver && canDrop ? '#FFF9C4' : 'transparent'
 
   return (
-    <tbody ref={isEditMode ? drop as any : null} style={{ backgroundColor }}>
+    <tbody ref={drop as any} style={{ backgroundColor }}>
       {children}
     </tbody>
   )
@@ -349,7 +541,6 @@ function ShiftRowContainer({ shiftType, children, onDrop, isEditMode }: ShiftRow
 export default function GridView({ schedule, employees, onUpdate }: GridViewProps) {
   const [companyName, setCompanyName] = useState('MI EMPRESA')
   const [isEditingCompany, setIsEditingCompany] = useState(false)
-  const [isEditMode, setIsEditMode] = useState(false)
   const [coverageMenu, setCoverageMenu] = useState<{
     isOpen: boolean
     position: { x: number; y: number }
@@ -359,6 +550,21 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
     shiftType: ShiftType
     currentInfo: CoverageInfo | null
   } | null>(null)
+  const [selectedCell, setSelectedCell] = useState<{
+    employeeId: string
+    dayIndex: number
+    shiftType: ShiftType
+  } | null>(null)
+
+  // Multi-selection state for brush selection
+  const [isSelecting, setIsSelecting] = useState(false)
+  const [selectionStart, setSelectionStart] = useState<{
+    employeeId: string
+    dayIndex: number
+    shiftType: ShiftType
+  } | null>(null)
+  const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set())
+
   const tableRef = useRef<HTMLDivElement>(null)
 
   // Auto-assign shifts and ensure unique positions per shift type (not globally)
@@ -506,17 +712,107 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
     }
   }, [schedule?.id, employees.length]) // Run when schedule changes or employee count changes
 
-  if (!schedule) {
-    return (
-      <div className="card text-center py-12">
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No schedule selected</h3>
-        <p className="text-gray-600">Select a schedule to view in grid mode.</p>
-      </div>
-    )
-  }
+  // Hotkey handler for quick status assignment (single or multi-selection)
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input or textarea
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      const key = e.key.toLowerCase()
+
+      // Handle Escape - clear all selections
+      if (key === 'escape') {
+        setSelectedCell(null)
+        setSelectedCells(new Set())
+        setSelectionStart(null)
+        e.preventDefault()
+        return
+      }
+
+      // Handle multi-selection
+      if (selectedCells.size > 0) {
+        let targetStatus: ShiftStatus | null = null
+
+        switch (key) {
+          case 'v':
+            targetStatus = 'vacation'
+            break
+          case 'd':
+            targetStatus = 'rest'
+            break
+          case 'c':
+            targetStatus = 'covering'
+            break
+          case 'delete':
+          case 'backspace':
+            targetStatus = 'assigned'
+            break
+          default:
+            return
+        }
+
+        if (targetStatus) {
+          // Apply status to all selected cells
+          selectedCells.forEach(cellKey => {
+            const [employeeId, dayIndexStr, shiftType] = cellKey.split('-')
+            const dayIndex = parseInt(dayIndexStr)
+            applyStatus(targetStatus!, employeeId, dayIndex, shiftType as ShiftType)
+          })
+          // Clear selection after applying
+          setSelectedCells(new Set())
+          setSelectionStart(null)
+          e.preventDefault()
+        }
+        return
+      }
+
+      // Handle single cell selection
+      if (!selectedCell) return
+
+      const { employeeId, dayIndex, shiftType } = selectedCell
+
+      switch (key) {
+        case 'v':
+          applyStatus('vacation', employeeId, dayIndex, shiftType)
+          break
+        case 'd':
+          applyStatus('rest', employeeId, dayIndex, shiftType)
+          break
+        case 'c':
+          applyStatus('covering', employeeId, dayIndex, shiftType)
+          break
+        case 'delete':
+        case 'backspace':
+          applyStatus('assigned', employeeId, dayIndex, shiftType)
+          break
+        default:
+          return
+      }
+
+      e.preventDefault()
+    }
+
+    window.addEventListener('keydown', handleKeyPress)
+    return () => window.removeEventListener('keydown', handleKeyPress)
+  }, [selectedCell, selectedCells, schedule, employees])
+
+  // Handle global mouseup to stop selection
+  useEffect(() => {
+    const handleMouseUp = () => {
+      if (isSelecting) {
+        setIsSelecting(false)
+      }
+    }
+
+    document.addEventListener('mouseup', handleMouseUp)
+    return () => document.removeEventListener('mouseup', handleMouseUp)
+  }, [isSelecting])
 
   // Get shift for a specific employee on a specific day and shift type
   const getShiftForDay = (dayIndex: number, shiftType: ShiftType, employeeId?: string): any => {
+    if (!schedule) return null
     const day = schedule.days[dayIndex]
     const shiftConfig = SHIFT_LABELS[shiftType as keyof typeof SHIFT_LABELS]
     if (!shiftConfig) return null
@@ -537,55 +833,192 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
   }
 
   const handleCellClick = (employeeId: string, dayIndex: number, shiftType: ShiftType) => {
+    // Clear multi-selection and set single cell
+    setSelectedCells(new Set())
+    setSelectionStart(null)
+    setSelectedCell({ employeeId, dayIndex, shiftType })
+  }
+
+  const handleCellMouseDown = (employeeId: string, dayIndex: number, shiftType: ShiftType, e: React.MouseEvent) => {
+    // Prevent text selection
+    e.preventDefault()
+
+    // Start multi-selection
+    setIsSelecting(true)
+    setSelectionStart({ employeeId, dayIndex, shiftType })
+    setSelectedCell(null) // Clear single selection
+
+    // Initialize selection with this cell
+    const cellKey = `${employeeId}-${dayIndex}-${shiftType}`
+    setSelectedCells(new Set([cellKey]))
+  }
+
+  const handleCellMouseEnter = (employeeId: string, dayIndex: number, shiftType: ShiftType) => {
+    if (!isSelecting || !selectionStart) return
+
+    // Only select cells from the same employee and same shift
+    if (employeeId !== selectionStart.employeeId || shiftType !== selectionStart.shiftType) return
+
+    // Calculate range of days to select
+    const minDay = Math.min(selectionStart.dayIndex, dayIndex)
+    const maxDay = Math.max(selectionStart.dayIndex, dayIndex)
+
+    const newSelection = new Set<string>()
+    for (let i = minDay; i <= maxDay; i++) {
+      const cellKey = `${employeeId}-${i}-${shiftType}`
+      newSelection.add(cellKey)
+    }
+
+    setSelectedCells(newSelection)
+  }
+
+  // Apply status directly via hotkey (no rotation)
+  const applyStatus = (targetStatus: ShiftStatus, employeeId: string, dayIndex: number, shiftType: ShiftType) => {
+    if (!schedule) return
+
     const updatedSchedule = { ...schedule }
-    const day = updatedSchedule.days[dayIndex]
     const shiftConfig = SHIFT_LABELS[shiftType as keyof typeof SHIFT_LABELS]
     if (!shiftConfig) return
 
     const [startTime, endTime] = shiftConfig.time.split('-')
 
-    // Find the shift for this specific employee
-    let shiftIndex = day.shifts.findIndex(s =>
-      s.startTime === startTime &&
-      s.endTime === endTime &&
-      s.employeeId === employeeId
-    )
+    // If applying vacation, use auto-merge logic
+    let daysToUpdate: number[] = [dayIndex]
 
-    // If shift doesn't exist for this employee, create it
-    if (shiftIndex === -1) {
-      const { generateId } = require('@/lib/utils')
-      const newShift = {
-        id: generateId(),
-        startTime,
-        endTime,
-        date: day.date,
-        employeeId,
-        isAssigned: true,
-        status: 'assigned' as ShiftStatus
+    // If clearing a vacation (setting to assigned), find and clear the entire vacation block
+    if (targetStatus === 'assigned') {
+      const currentShift = updatedSchedule.days[dayIndex].shifts.find(s =>
+        s.startTime === startTime &&
+        s.endTime === endTime &&
+        s.employeeId === employeeId
+      )
+
+      if (currentShift?.status === 'vacation') {
+        // Find all consecutive vacation days for this employee/shift
+        const vacationDays: number[] = []
+
+        // Scan backwards from dayIndex
+        for (let i = dayIndex; i >= 0; i--) {
+          const shift = updatedSchedule.days[i].shifts.find(s =>
+            s.startTime === startTime &&
+            s.endTime === endTime &&
+            s.employeeId === employeeId &&
+            s.status === 'vacation'
+          )
+          if (shift) {
+            vacationDays.unshift(i)
+          } else {
+            break
+          }
+        }
+
+        // Scan forward from dayIndex+1
+        for (let i = dayIndex + 1; i < updatedSchedule.days.length; i++) {
+          const shift = updatedSchedule.days[i].shifts.find(s =>
+            s.startTime === startTime &&
+            s.endTime === endTime &&
+            s.employeeId === employeeId &&
+            s.status === 'vacation'
+          )
+          if (shift) {
+            vacationDays.push(i)
+          } else {
+            break
+          }
+        }
+
+        daysToUpdate = vacationDays
       }
-      day.shifts.push(newShift)
-      shiftIndex = day.shifts.length - 1
+    } else if (targetStatus === 'vacation') {
+      // Find all existing vacation days for this employee/shift
+      const existingVacationDays: number[] = []
+      updatedSchedule.days.forEach((day, di) => {
+        const shift = day.shifts.find(s =>
+          s.startTime === startTime &&
+          s.endTime === endTime &&
+          s.employeeId === employeeId &&
+          s.status === 'vacation'
+        )
+        if (shift) {
+          existingVacationDays.push(di)
+        }
+      })
+
+      // Add the target day
+      if (!existingVacationDays.includes(dayIndex)) {
+        existingVacationDays.push(dayIndex)
+      }
+
+      // Fill intermediate days (only assigned/empty/rest)
+      if (existingVacationDays.length > 0) {
+        existingVacationDays.sort((a, b) => a - b)
+        const minDay = existingVacationDays[0]
+        const maxDay = existingVacationDays[existingVacationDays.length - 1]
+
+        daysToUpdate = []
+        for (let i = minDay; i <= maxDay; i++) {
+          const dayShift = updatedSchedule.days[i].shifts.find(s =>
+            s.startTime === startTime &&
+            s.endTime === endTime &&
+            s.employeeId === employeeId
+          )
+
+          const currentDayStatus = dayShift?.status || 'assigned'
+
+          // Include if: assigned, empty, rest, or already vacation
+          if (currentDayStatus === 'assigned' ||
+              currentDayStatus === 'empty' ||
+              currentDayStatus === 'rest' ||
+              currentDayStatus === 'vacation') {
+            daysToUpdate.push(i)
+          } else {
+            if (i <= dayIndex) {
+              continue
+            } else {
+              break
+            }
+          }
+        }
+      }
     }
 
-    const targetShift = day.shifts[shiftIndex]
+    // Apply status to days
+    daysToUpdate.forEach(di => {
+      const day = updatedSchedule.days[di]
+      let shiftIndex = day.shifts.findIndex(s =>
+        s.startTime === startTime &&
+        s.endTime === endTime &&
+        s.employeeId === employeeId
+      )
 
-    // Rotate status for this employee's shift
-    const currentStatus = targetShift.status || 'assigned'
-    const currentStatusIndex = STATUS_ROTATION.indexOf(currentStatus)
-    const nextStatus = STATUS_ROTATION[(currentStatusIndex + 1) % STATUS_ROTATION.length]
+      if (shiftIndex === -1) {
+        const { generateId } = require('@/lib/utils')
+        day.shifts.push({
+          id: generateId(),
+          startTime,
+          endTime,
+          date: day.date,
+          employeeId,
+          isAssigned: targetStatus === 'assigned',
+          status: targetStatus
+        })
+        shiftIndex = day.shifts.length - 1
+      }
 
-    targetShift.status = nextStatus
-    targetShift.isAssigned = nextStatus === 'assigned'
+      const targetShift = day.shifts[shiftIndex]
+      targetShift.status = targetStatus
+      targetShift.isAssigned = targetStatus === 'assigned'
 
-    // If switching to 'covering' status, set default coverage to night shift
-    if (nextStatus === 'covering' && !targetShift.coverageInfo) {
-      targetShift.coverageInfo = { type: 'shift', target: 'night' }
-    }
+      // If switching to 'covering', set default coverage
+      if (targetStatus === 'covering' && !targetShift.coverageInfo) {
+        targetShift.coverageInfo = { type: 'shift', target: 'night' }
+      }
 
-    // If switching away from 'covering', clear coverage info
-    if (currentStatus === 'covering' && nextStatus !== 'covering') {
-      targetShift.coverageInfo = undefined
-    }
+      // If switching away from 'covering', clear coverage info
+      if (targetShift.status !== 'covering') {
+        targetShift.coverageInfo = undefined
+      }
+    })
 
     storage.updateSchedule(schedule.id, updatedSchedule)
     onUpdate()
@@ -616,7 +1049,7 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
   }
 
   const handleCoverageSelect = (coverageInfo: CoverageInfo) => {
-    if (!coverageMenu) return
+    if (!coverageMenu || !schedule) return
 
     const updatedSchedule = { ...schedule }
     const shift = getShiftForDay(coverageMenu.dayIndex, coverageMenu.shiftType, coverageMenu.employeeId)
@@ -633,6 +1066,7 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
   }
 
   const handleEmployeeShiftChange = (employeeId: string, newShiftType: ShiftType) => {
+    if (!schedule) return
     // Find the employee and update their shift
     const employee = employees.find(emp => emp.id === employeeId)
     if (!employee) return
@@ -643,6 +1077,41 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
     if (oldShiftType && oldShiftType !== 'unassigned' && oldShiftType !== newShiftType) {
       const updatedSchedule = { ...schedule }
       const { generateId } = require('@/lib/utils')
+
+      // Determine available position for the new shift
+      // Available positions pool - Turno 3 (night) does NOT have C1
+      const availablePositions: PositionType[] = newShiftType === 'night'
+        ? ['C2', 'C3']
+        : ['C1', 'C2', 'C3']
+
+      // Get current position of this employee
+      const oldShift = getShiftForDay(0, oldShiftType, employeeId)
+      const currentPosition = oldShift?.position
+
+      // Get positions already used in the NEW shift by other employees
+      const usedPositionsInNewShift = new Set<PositionType>()
+      employees.forEach(emp => {
+        if (emp.assignedShift === newShiftType && emp.id !== employeeId) {
+          const empShift = getShiftForDay(0, newShiftType, emp.id)
+          if (empShift?.position && empShift.position !== 'EXT') {
+            usedPositionsInNewShift.add(empShift.position)
+          }
+        }
+      })
+
+      // Determine the position to assign
+      let assignedPosition: PositionType
+
+      // Try to keep current position if available in new shift
+      if (currentPosition && currentPosition !== 'EXT' &&
+          availablePositions.includes(currentPosition) &&
+          !usedPositionsInNewShift.has(currentPosition)) {
+        assignedPosition = currentPosition
+      } else {
+        // Find first available position
+        const availablePos = availablePositions.find(p => !usedPositionsInNewShift.has(p))
+        assignedPosition = availablePos || 'EXT'
+      }
 
       // For each day in the schedule
       updatedSchedule.days.forEach((day, dayIndex) => {
@@ -668,7 +1137,8 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
               employeeId,
               isAssigned: status === 'assigned',
               status,
-              coverageInfo
+              coverageInfo,
+              position: assignedPosition
             }
             day.shifts.push(newShift)
           }
@@ -694,6 +1164,7 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
   }
 
   const handlePositionChange = (employeeId: string, position: PositionType) => {
+    if (!schedule) return
     // Find the employee to get their shift type
     const employee = employees.find(emp => emp.id === employeeId)
     if (!employee || !employee.assignedShift) return
@@ -747,15 +1218,93 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
     onUpdate()
   }
 
+  const handleVacationDrop = (employeeId: string, targetDayIndex: number, shiftType: ShiftType) => {
+    if (!schedule) return
+
+    const updatedSchedule = { ...schedule }
+    const shiftConfig = SHIFT_LABELS[shiftType as keyof typeof SHIFT_LABELS]
+    if (!shiftConfig) return
+    const [startTime, endTime] = shiftConfig.time.split('-')
+
+    // Find all existing vacation days for this employee/shift
+    const existingVacationDays: number[] = []
+    updatedSchedule.days.forEach((day, di) => {
+      const shift = day.shifts.find(s =>
+        s.startTime === startTime &&
+        s.endTime === endTime &&
+        s.employeeId === employeeId &&
+        s.status === 'vacation'
+      )
+      if (shift) {
+        existingVacationDays.push(di)
+      }
+    })
+
+    // Add the target day
+    if (!existingVacationDays.includes(targetDayIndex)) {
+      existingVacationDays.push(targetDayIndex)
+    }
+
+    // Fill intermediate days BUT only if they're assigned/empty (don't overwrite rest, covering, etc.)
+    existingVacationDays.sort((a, b) => a - b)
+    const minDay = existingVacationDays[0]
+    const maxDay = existingVacationDays[existingVacationDays.length - 1]
+
+    const daysToUpdate: number[] = []
+    for (let i = minDay; i <= maxDay; i++) {
+      const dayShift = updatedSchedule.days[i].shifts.find(s =>
+        s.startTime === startTime &&
+        s.endTime === endTime &&
+        s.employeeId === employeeId
+      )
+
+      const currentDayStatus = dayShift?.status || 'assigned'
+
+      // Only include this day if it's assigned, empty, or already vacation
+      if (currentDayStatus === 'assigned' || currentDayStatus === 'empty' || currentDayStatus === 'vacation') {
+        daysToUpdate.push(i)
+      } else {
+        // If we hit a day with rest/covering/sick/absent, don't merge across it
+        if (i <= targetDayIndex) {
+          continue
+        } else {
+          break
+        }
+      }
+    }
+
+    // Apply vacation status to all days in the merged block
+    daysToUpdate.forEach(di => {
+      const day = updatedSchedule.days[di]
+      let shiftIndex = day.shifts.findIndex(s =>
+        s.employeeId === employeeId &&
+        s.startTime === startTime &&
+        s.endTime === endTime
+      )
+
+      if (shiftIndex === -1) {
+        const { generateId } = require('@/lib/utils')
+        day.shifts.push({
+          id: generateId(),
+          startTime,
+          endTime,
+          date: day.date,
+          employeeId,
+          isAssigned: false,
+          status: 'vacation'
+        })
+      } else {
+        day.shifts[shiftIndex].status = 'vacation'
+        day.shifts[shiftIndex].isAssigned = false
+      }
+    })
+
+    storage.updateSchedule(schedule.id, updatedSchedule)
+    onUpdate()
+  }
+
   const exportToPDF = async () => {
-    if (!tableRef.current) return
-
-    // Temporarily disable edit mode for export
-    const wasEditMode = isEditMode
-    if (wasEditMode) setIsEditMode(false)
-
-    // Wait for state update
-    await new Promise(resolve => setTimeout(resolve, 100))
+    if (!tableRef.current || !schedule) return
 
     try {
       const canvas = await html2canvas(tableRef.current, {
@@ -780,9 +1329,6 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
     } catch (error) {
       console.error('Error generating PDF:', error)
       alert('Error generating PDF. Please try again.')
-    } finally {
-      // Restore edit mode
-      if (wasEditMode) setIsEditMode(true)
     }
   }
 
@@ -830,6 +1376,7 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
 
   // Get employees from OTHER shifts who are covering THIS shift
   const getEmployeesCoveringThisShift = (targetShiftType: ShiftType): Array<{ employee: Employee; coveringDays: number[] }> => {
+    if (!schedule) return []
     const coveringEmployees: Array<{ employee: Employee; coveringDays: number[] }> = []
 
     employees.forEach(employee => {
@@ -863,12 +1410,8 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
     return coveringEmployees
   }
 
-  // Get all employees with assigned shifts
-  const allAssignedEmployees = employees.filter(emp =>
-    emp.assignedShift && emp.assignedShift !== 'unassigned'
-  )
-
   const handleCreateNextSchedule = () => {
+    if (!schedule) return
     const scheduleEnd = new Date(schedule.endDate)
     scheduleEnd.setHours(0, 0, 0, 0)
 
@@ -912,6 +1455,15 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
     alert(`✅ Horario creado: ${scheduleName}`)
   }
 
+  if (!schedule) {
+    return (
+      <div className="card text-center py-12">
+        <h3 className="text-lg font-medium text-gray-900 mb-2">No schedule selected</h3>
+        <p className="text-gray-600">Select a schedule to view in grid mode.</p>
+      </div>
+    )
+  }
+
   return (
     <DndProvider backend={HTML5Backend}>
       {/* Coverage Menu */}
@@ -938,22 +1490,6 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
               <span>Nuevo Horario</span>
             </button>
             <button
-              onClick={() => setIsEditMode(!isEditMode)}
-              className={`btn ${isEditMode ? 'btn-primary' : 'btn-secondary'} flex items-center space-x-2`}
-            >
-              {isEditMode ? (
-                <>
-                  <Check className="h-4 w-4" />
-                  <span>Finalizar Edición</span>
-                </>
-              ) : (
-                <>
-                  <Edit2 className="h-4 w-4" />
-                  <span>Editar</span>
-                </>
-              )}
-            </button>
-            <button
               onClick={exportToPDF}
               className="btn btn-primary flex items-center space-x-2"
             >
@@ -963,13 +1499,29 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
           </div>
         </div>
 
-        {isEditMode && allAssignedEmployees.length > 0 && (
-          <div className="card bg-blue-50 border-blue-200">
-            <p className="text-sm text-blue-700">
-              🖱️ <strong>Modo edición activado:</strong> Arrastra las filas de empleados entre turnos para reasignarlos
-            </p>
+        {/* Hotkey Legend */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center space-x-4">
+            <span className="font-semibold text-blue-900">Atajos de teclado:</span>
+            <div className="flex flex-wrap gap-3 text-sm">
+              <span className="bg-white px-2 py-1 rounded border border-blue-300">
+                <kbd className="font-mono font-bold">V</kbd> Vacaciones
+              </span>
+              <span className="bg-white px-2 py-1 rounded border border-blue-300">
+                <kbd className="font-mono font-bold">D</kbd> Descanso
+              </span>
+              <span className="bg-white px-2 py-1 rounded border border-blue-300">
+                <kbd className="font-mono font-bold">C</kbd> Cubriendo
+              </span>
+              <span className="bg-white px-2 py-1 rounded border border-blue-300">
+                <kbd className="font-mono font-bold">Del</kbd> Limpiar
+              </span>
+              <span className="bg-white px-2 py-1 rounded border border-blue-300">
+                <kbd className="font-mono font-bold">Esc</kbd> Deseleccionar
+              </span>
+            </div>
           </div>
-        )}
+        </div>
 
       <div ref={tableRef} className="bg-white p-6">
         {/* Company Header */}
@@ -1015,7 +1567,6 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
           <ShiftRowContainer
             shiftType="morning"
             onDrop={handleEmployeeShiftChange}
-            isEditMode={isEditMode}
           >
             <tr style={{ backgroundColor: '#FFEB9C' }}>
               <td colSpan={schedule.days.length + 1} style={{ border: '1px solid #000', padding: '8px', fontWeight: 'bold', textAlign: 'center' }}>
@@ -1041,7 +1592,11 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
                     onContextMenu={handleContextMenu}
                     onPositionChange={handlePositionChange}
                     getShiftForDay={getShiftForDay}
-                    isEditMode={isEditMode}
+                    onVacationDrop={handleVacationDrop}
+                    onCellMouseDown={handleCellMouseDown}
+                    onCellMouseEnter={handleCellMouseEnter}
+                    selectedCell={selectedCell}
+                    selectedCells={selectedCells}
                   />
                 ))}
                 {/* Covering employees from other shifts */}
@@ -1056,7 +1611,11 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
                     onContextMenu={handleContextMenu}
                     onPositionChange={handlePositionChange}
                     getShiftForDay={getShiftForDay}
-                    isEditMode={isEditMode}
+                    onVacationDrop={handleVacationDrop}
+                    onCellMouseDown={handleCellMouseDown}
+                    onCellMouseEnter={handleCellMouseEnter}
+                    selectedCell={selectedCell}
+                    selectedCells={selectedCells}
                     isCoveringRow={true}
                     coveringDays={coveringDays}
                   />
@@ -1069,7 +1628,6 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
           <ShiftRowContainer
             shiftType="afternoon"
             onDrop={handleEmployeeShiftChange}
-            isEditMode={isEditMode}
           >
             <tr style={{ backgroundColor: '#FFEB9C' }}>
               <td colSpan={schedule.days.length + 1} style={{ border: '1px solid #000', padding: '8px', fontWeight: 'bold', textAlign: 'center' }}>
@@ -1095,7 +1653,11 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
                     onContextMenu={handleContextMenu}
                     onPositionChange={handlePositionChange}
                     getShiftForDay={getShiftForDay}
-                    isEditMode={isEditMode}
+                    onVacationDrop={handleVacationDrop}
+                    onCellMouseDown={handleCellMouseDown}
+                    onCellMouseEnter={handleCellMouseEnter}
+                    selectedCell={selectedCell}
+                    selectedCells={selectedCells}
                   />
                 ))}
                 {/* Covering employees from other shifts */}
@@ -1110,7 +1672,11 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
                     onContextMenu={handleContextMenu}
                     onPositionChange={handlePositionChange}
                     getShiftForDay={getShiftForDay}
-                    isEditMode={isEditMode}
+                    onVacationDrop={handleVacationDrop}
+                    onCellMouseDown={handleCellMouseDown}
+                    onCellMouseEnter={handleCellMouseEnter}
+                    selectedCell={selectedCell}
+                    selectedCells={selectedCells}
                     isCoveringRow={true}
                     coveringDays={coveringDays}
                   />
@@ -1123,7 +1689,6 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
           <ShiftRowContainer
             shiftType="night"
             onDrop={handleEmployeeShiftChange}
-            isEditMode={isEditMode}
           >
             <tr style={{ backgroundColor: '#FFEB9C' }}>
               <td colSpan={schedule.days.length + 1} style={{ border: '1px solid #000', padding: '8px', fontWeight: 'bold', textAlign: 'center' }}>
@@ -1149,7 +1714,11 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
                     onContextMenu={handleContextMenu}
                     onPositionChange={handlePositionChange}
                     getShiftForDay={getShiftForDay}
-                    isEditMode={isEditMode}
+                    onVacationDrop={handleVacationDrop}
+                    onCellMouseDown={handleCellMouseDown}
+                    onCellMouseEnter={handleCellMouseEnter}
+                    selectedCell={selectedCell}
+                    selectedCells={selectedCells}
                   />
                 ))}
                 {/* Covering employees from other shifts */}
@@ -1164,7 +1733,11 @@ export default function GridView({ schedule, employees, onUpdate }: GridViewProp
                     onContextMenu={handleContextMenu}
                     onPositionChange={handlePositionChange}
                     getShiftForDay={getShiftForDay}
-                    isEditMode={isEditMode}
+                    onVacationDrop={handleVacationDrop}
+                    onCellMouseDown={handleCellMouseDown}
+                    onCellMouseEnter={handleCellMouseEnter}
+                    selectedCell={selectedCell}
+                    selectedCells={selectedCells}
                     isCoveringRow={true}
                     coveringDays={coveringDays}
                   />

@@ -22,6 +22,7 @@ const STATUS_CONFIG = {
   vacation: { label: 'VAC', bg: 'bg-blue-600', text: 'text-white', border: 'border-blue-700' },
   sick: { label: 'SICK', bg: 'bg-red-600', text: 'text-white', border: 'border-red-700' },
   absent: { label: 'ABS', bg: 'bg-orange-600', text: 'text-white', border: 'border-orange-700' },
+  covering: { label: 'COVER', bg: 'bg-orange-400', text: 'text-white', border: 'border-orange-500' },
   empty: { label: 'Empty', bg: 'bg-gray-50', text: 'text-gray-400', border: 'border-gray-200' }
 }
 
@@ -288,6 +289,7 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
                             <option value="vacation">Vacation</option>
                             <option value="sick">Sick</option>
                             <option value="absent">Absent</option>
+                            <option value="covering">Covering</option>
                             <option value="empty">Empty</option>
                           </select>
 
