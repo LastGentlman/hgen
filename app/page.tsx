@@ -1,12 +1,26 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { Employee, Schedule, BranchCode, Division } from '@/types'
 import { storage } from '@/lib/storage'
-import EmployeeManager from '@/components/EmployeeManager'
-import HistoryManager from '@/components/HistoryManager'
-import GridView from '@/components/GridView'
 import { Calendar, Users, Grid3x3, History, Menu } from 'lucide-react'
+
+// Lazy load tab components for better performance
+const EmployeeManager = dynamic(() => import('@/components/EmployeeManager'), {
+  loading: () => <div className="flex items-center justify-center py-12"><div className="animate-pulse text-gray-500">Loading...</div></div>,
+  ssr: false
+})
+
+const HistoryManager = dynamic(() => import('@/components/HistoryManager'), {
+  loading: () => <div className="flex items-center justify-center py-12"><div className="animate-pulse text-gray-500">Loading...</div></div>,
+  ssr: false
+})
+
+const GridView = dynamic(() => import('@/components/GridView'), {
+  loading: () => <div className="flex items-center justify-center py-12"><div className="animate-pulse text-gray-500">Loading...</div></div>,
+  ssr: false
+})
 
 type ActiveTab = 'employees' | 'history' | 'grid'
 
@@ -21,74 +35,25 @@ export default function Home() {
 
   useEffect(() => {
     const loadedEmployees = storage.getEmployees()
-    let loadedSchedules = storage.getSchedules()
+    const loadedSchedules = storage.getSchedules()
 
     setEmployees(loadedEmployees)
-
-    // Auto-create schedules if none exist OR if existing schedules are outdated
-    const today = new Date()
-    today.setHours(0, 0, 0, 0) // Reset time to midnight for comparison
-
-    const hasCurrentSchedule = loadedSchedules.some(schedule => {
-      // Respect context if schedule is tagged; allow untagged for backward compatibility
-      const matchesContext = (
-        (!schedule.branchCode || schedule.branchCode === branchCode) &&
-        (!schedule.division || schedule.division === division)
-      )
-      if (!matchesContext) return false
-
-      const [year, month, day] = schedule.startDate.split('-').map(Number)
-      const scheduleStart = new Date(year, month - 1, day)
-      const [eYear, eMonth, eDay] = schedule.endDate.split('-').map(Number)
-      const scheduleEnd = new Date(eYear, eMonth - 1, eDay)
-      scheduleStart.setHours(0, 0, 0, 0)
-      scheduleEnd.setHours(0, 0, 0, 0)
-
-      return today >= scheduleStart && today <= scheduleEnd
-    })
-
-    if (!hasCurrentSchedule) {
-      const currentDay = today.getDate()
-
-      // Determine which schedule to create based on current date
-      let startDate: Date
-      let scheduleName: string
-
-      if (currentDay <= 15) {
-        // Create first half schedule (1st to 15th)
-        startDate = new Date(today.getFullYear(), today.getMonth(), 1)
-        scheduleName = `Horario ${today.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 1ra Quincena`
-      } else {
-        // Create second half schedule (16th to end of month)
-        startDate = new Date(today.getFullYear(), today.getMonth(), 16)
-        scheduleName = `Horario ${today.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 2da Quincena`
-      }
-
-      const { generateWeeklySchedule, getDefaultShiftTemplates } = require('@/lib/utils')
-      const templates = getDefaultShiftTemplates()
-      const newSchedule = generateWeeklySchedule(
-        startDate.toISOString().split('T')[0],
-        scheduleName,
-        templates
-      )
-
-      // Tag schedule to current context for isolation
-      newSchedule.branchCode = branchCode
-      newSchedule.division = division
-
-      storage.addSchedule(newSchedule)
-      loadedSchedules = storage.getSchedules()
-    }
-
     setSchedules(loadedSchedules)
 
-    // Auto-select the most current schedule (closest to today)
+    // Auto-select the most current schedule (closest to today) if any exist
     if (loadedSchedules.length > 0) {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+
       // Filter by context
       const contextSchedules = loadedSchedules.filter(s =>
         (!s.branchCode || s.branchCode === branchCode) && (!s.division || s.division === division)
       )
-      if (contextSchedules.length === 0) return
+
+      if (contextSchedules.length === 0) {
+        setActiveSchedule(null)
+        return
+      }
 
       const sortedSchedules = [...contextSchedules].sort((a, b) => {
         const [aYear, aMonth, aDay] = a.startDate.split('-').map(Number)
@@ -113,10 +78,12 @@ export default function Home() {
         return bStart - aStart
       })
       setActiveSchedule(sortedSchedules[0])
+    } else {
+      setActiveSchedule(null)
     }
   }, [])
 
-  // When context changes, select appropriate schedule or create one if none exists
+  // When context changes, select appropriate schedule if exists
   useEffect(() => {
     const allSchedules = storage.getSchedules()
     const today = new Date()
@@ -127,32 +94,7 @@ export default function Home() {
     )
 
     if (contextSchedules.length === 0) {
-      // Create schedule for this context using same logic
-      const currentDay = today.getDate()
-      let startDate: Date
-      let scheduleName: string
-      if (currentDay <= 15) {
-        startDate = new Date(today.getFullYear(), today.getMonth(), 1)
-        scheduleName = `Horario ${today.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 1ra Quincena`
-      } else {
-        startDate = new Date(today.getFullYear(), today.getMonth(), 16)
-        scheduleName = `Horario ${today.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 2da Quincena`
-      }
-      const { generateWeeklySchedule, getDefaultShiftTemplates } = require('@/lib/utils')
-      const templates = getDefaultShiftTemplates()
-      const newSchedule = generateWeeklySchedule(
-        startDate.toISOString().split('T')[0],
-        scheduleName,
-        templates
-      )
-      newSchedule.branchCode = branchCode
-      newSchedule.division = division
-      storage.addSchedule(newSchedule)
-
-      // Refresh state
-      const updatedSchedules = storage.getSchedules()
-      setSchedules(updatedSchedules)
-      setActiveSchedule(newSchedule)
+      setActiveSchedule(null)
       return
     }
 
@@ -360,6 +302,7 @@ export default function Home() {
             activeScheduleId={activeSchedule?.id || null}
             branchCode={branchCode}
             division={division}
+            onUpdate={handleScheduleUpdate}
           />
         )}
 

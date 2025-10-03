@@ -7,13 +7,14 @@ import { parseLocalDate } from '@/lib/utils'
 import { History, Eye, Trash2, Calendar, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
 
 interface HistoryManagerProps {
-  onScheduleSelect: (schedule: Schedule) => void
+  onScheduleSelect: (schedule: Schedule | null) => void
   activeScheduleId: string | null
   branchCode?: BranchCode
   division?: Division
+  onUpdate?: () => void
 }
 
-export default function HistoryManager({ onScheduleSelect, activeScheduleId, branchCode, division }: HistoryManagerProps) {
+export default function HistoryManager({ onScheduleSelect, activeScheduleId, branchCode, division, onUpdate }: HistoryManagerProps) {
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [isExpanded, setIsExpanded] = useState(true)
 
@@ -41,12 +42,21 @@ export default function HistoryManager({ onScheduleSelect, activeScheduleId, bra
       storage.deleteSchedule(id)
       loadSchedules()
 
-      // If deleted schedule was active, select the first available one
-      if (activeScheduleId === id && schedules.length > 1) {
+      // If deleted schedule was active
+      if (activeScheduleId === id) {
         const remaining = schedules.filter(s => s.id !== id)
         if (remaining.length > 0) {
+          // Select the first available schedule
           onScheduleSelect(remaining[0])
+        } else {
+          // No schedules left, set to null
+          onScheduleSelect(null)
         }
+      }
+
+      // Notify parent component to refresh state
+      if (onUpdate) {
+        onUpdate()
       }
     }
   }
@@ -55,7 +65,12 @@ export default function HistoryManager({ onScheduleSelect, activeScheduleId, bra
     if (confirm('⚠️ ADVERTENCIA: Esto eliminará TODOS los horarios guardados. ¿Estás seguro?\n\nEsta acción no se puede deshacer.')) {
       storage.clearAllSchedules()
       setSchedules([])
-      window.location.reload() // Reload to recreate the current schedule
+      onScheduleSelect(null)
+
+      // Notify parent component to refresh state
+      if (onUpdate) {
+        onUpdate()
+      }
     }
   }
 

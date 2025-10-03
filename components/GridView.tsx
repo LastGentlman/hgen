@@ -4,9 +4,8 @@ import { useState, useRef, useEffect } from 'react'
 import { Employee, Schedule, ShiftStatus, ShiftType, CoverageInfo, PositionType, BranchCode, Division } from '@/types'
 import { storage } from '@/lib/storage'
 import { formatTime, generateWeeklySchedule, getDefaultShiftTemplates, parseLocalDate } from '@/lib/utils'
-import { Download, Plus, FileJson, Upload } from 'lucide-react'
-import jsPDF from 'jspdf'
-import html2canvas from 'html2canvas'
+import { exportToPDF, exportToCSV, importFromCSV } from '@/lib/exportUtils'
+import { Download, Plus, Upload, Calendar, FileSpreadsheet, MoreVertical } from 'lucide-react'
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 
@@ -368,7 +367,7 @@ function DraggableVacationCell({ employee, dayIndex, shiftType, status, config, 
         border: `1px solid ${config.border}`,
         backgroundColor: finalBackgroundColor,
         color: isMultiSelected ? '#1E3A8A' : config.color, // Dark blue text for multi-selection
-        padding: '8px',
+        padding: coverageInfoText ? '4px 8px' : '8px',
         textAlign: 'center',
         cursor,
         fontWeight: 'bold',
@@ -377,20 +376,31 @@ function DraggableVacationCell({ employee, dayIndex, shiftType, status, config, 
         outline: isSelected ? '3px solid #3B82F6' : isMultiSelected ? '2px solid #3B82F6' : 'none',
         outlineOffset: '-3px',
         position: 'relative',
-        zIndex: isSelected ? 10 : isMultiSelected ? 5 : 1
+        zIndex: isSelected ? 10 : isMultiSelected ? 5 : 1,
+        minHeight: '40px',
+        verticalAlign: 'middle'
       }}
     >
-      <div>{config.label}</div>
-      {coverageInfoText && (
-        <div style={{
-          fontSize: '10px',
-          fontWeight: 'normal',
-          color: '#666',
-          marginTop: '2px'
-        }}>
-          ({coverageInfoText})
-        </div>
-      )}
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        lineHeight: '1.2'
+      }}>
+        <div>{config.label}</div>
+        {coverageInfoText && (
+          <div style={{
+            fontSize: '9px',
+            fontWeight: 'normal',
+            color: '#666',
+            marginTop: '0px',
+            lineHeight: '1'
+          }}>
+            ({coverageInfoText})
+          </div>
+        )}
+      </div>
     </td>
   )
 }
@@ -705,9 +715,11 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     shiftType: ShiftType
   } | null>(null)
   const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set())
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false)
 
   const tableRef = useRef<HTMLDivElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const csvFileInputRef = useRef<HTMLInputElement>(null)
+  const actionsMenuRef = useRef<HTMLDivElement>(null)
 
   // Update the visible title based on selected division/branch (e.g., SUPER 001)
   useEffect(() => {
@@ -715,6 +727,23 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     const branchLabel = branchCode || '001'
     setCompanyName(`${divisionLabel} ${branchLabel}`)
   }, [branchCode, division])
+
+  // Close actions menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (actionsMenuRef.current && !actionsMenuRef.current.contains(event.target as Node)) {
+        setIsActionsMenuOpen(false)
+      }
+    }
+
+    if (isActionsMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isActionsMenuOpen])
 
   // Auto-assign shifts and ensure unique positions per shift type (not globally)
   useEffect(() => {
@@ -1481,97 +1510,47 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     onUpdate()
   }
 
-  const exportToPDF = async () => {
+  const handleExportToPDF = async () => {
     if (!tableRef.current || !schedule) return
 
     try {
-      const canvas = await html2canvas(tableRef.current, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff'
-      })
-
-      const imgData = canvas.toDataURL('image/png')
-      const pdf = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: 'a4'
-      })
-
-      const imgWidth = 297
-      const imgHeight = (canvas.height * imgWidth) / canvas.width
-
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight)
-      pdf.save(`${schedule.name}.pdf`)
+      await exportToPDF(tableRef.current, `${schedule.name}.pdf`)
     } catch (error) {
-      console.error('Error generating PDF:', error)
       alert('Error generating PDF. Please try again.')
     }
   }
 
-  const exportToJSON = () => {
+  const handleExportToCSV = () => {
     if (!schedule) return
 
     try {
-      const jsonData = JSON.stringify(schedule, null, 2)
-      const blob = new Blob([jsonData], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `${schedule.name}.json`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
+      exportToCSV(schedule, employees, `${schedule.name}.csv`)
     } catch (error) {
-      console.error('Error exporting JSON:', error)
-      alert('Error al exportar JSON. Por favor intenta de nuevo.')
+      alert('Error al exportar CSV. Por favor intenta de nuevo.')
     }
   }
 
-  const importFromJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportFromCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (!file) return
+    if (!file || !schedule) return
 
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      try {
-        const content = e.target?.result as string
-        const importedSchedule = JSON.parse(content) as Schedule
+    try {
+      // Use ALL employees from storage, not just filtered ones
+      const allEmployees = storage.getEmployees()
+      const updatedSchedule = await importFromCSV(file, schedule, allEmployees)
 
-        // Validate imported schedule structure
-        if (!importedSchedule.id || !importedSchedule.name || !importedSchedule.days) {
-          throw new Error('Formato de horario inválido')
-        }
-
-        // Check if schedule already exists
-        const existingSchedules = storage.getSchedules()
-        const exists = existingSchedules.some(s => s.id === importedSchedule.id)
-
-        if (exists) {
-          const confirmOverwrite = confirm(`El horario "${importedSchedule.name}" ya existe. ¿Deseas sobrescribirlo?`)
-          if (confirmOverwrite) {
-            storage.updateSchedule(importedSchedule.id, importedSchedule)
-          } else {
-            return
-          }
-        } else {
-          storage.addSchedule(importedSchedule)
-        }
-
-        onUpdate()
-        alert(`✅ Horario importado: ${importedSchedule.name}`)
-      } catch (error) {
-        console.error('Error importing JSON:', error)
-        alert('Error al importar JSON. Verifica que el archivo sea válido.')
-      }
+      // Update schedule in storage
+      storage.updateSchedule(schedule.id, updatedSchedule)
+      onUpdate()
+      alert(`✅ Horario actualizado desde CSV`)
+    } catch (error: any) {
+      console.error('Error importing CSV:', error)
+      alert(error.message || 'Error al importar CSV. Verifica que el archivo sea válido.')
     }
-    reader.readAsText(file)
 
     // Reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
+    if (csvFileInputRef.current) {
+      csvFileInputRef.current.value = ''
     }
   }
 
@@ -1675,32 +1654,65 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   }
 
   const handleCreateNextSchedule = () => {
-    if (!schedule) return
-    const scheduleEnd = new Date(schedule.endDate)
-    scheduleEnd.setHours(0, 0, 0, 0)
-
-    // Calculate next schedule start date (day after current schedule ends)
-    const nextStartDate = new Date(scheduleEnd)
-    nextStartDate.setDate(nextStartDate.getDate() + 1)
-
-    const nextDay = nextStartDate.getDate()
+    let startDate: Date
     let scheduleName: string
+    let targetBranchCode: BranchCode
+    let targetDivision: Division
 
-    if (nextDay === 1) {
-      // Next schedule starts on 1st, so it's first half
-      scheduleName = `Horario ${nextStartDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 1ra Quincena`
-    } else if (nextDay === 16) {
-      // Next schedule starts on 16th, so it's second half
-      scheduleName = `Horario ${nextStartDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 2da Quincena`
+    if (!schedule) {
+      // No schedule exists - create one for current period
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const currentDay = today.getDate()
+
+      if (currentDay <= 15) {
+        // Create first half schedule (1st to 15th)
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1)
+        scheduleName = `Horario ${today.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 1ra Quincena`
+      } else {
+        // Create second half schedule (16th to end of month)
+        startDate = new Date(today.getFullYear(), today.getMonth(), 16)
+        scheduleName = `Horario ${today.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 2da Quincena`
+      }
+
+      // Use current context from props
+      targetBranchCode = branchCode || '001'
+      targetDivision = division || 'super'
     } else {
-      // Shouldn't happen, but handle it
-      alert('Error: No se puede crear el siguiente horario desde esta fecha.')
-      return
+      // Schedule exists - create next schedule
+      const scheduleEnd = new Date(schedule.endDate)
+      scheduleEnd.setHours(0, 0, 0, 0)
+
+      // Calculate next schedule start date (day after current schedule ends)
+      startDate = new Date(scheduleEnd)
+      startDate.setDate(startDate.getDate() + 1)
+
+      const nextDay = startDate.getDate()
+
+      if (nextDay === 1) {
+        // Next schedule starts on 1st, so it's first half
+        scheduleName = `Horario ${startDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 1ra Quincena`
+      } else if (nextDay === 16) {
+        // Next schedule starts on 16th, so it's second half
+        scheduleName = `Horario ${startDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 2da Quincena`
+      } else {
+        // Shouldn't happen, but handle it
+        alert('Error: No se puede crear el siguiente horario desde esta fecha.')
+        return
+      }
+
+      // Preserve organizational context from current schedule
+      targetBranchCode = schedule.branchCode || branchCode || '001'
+      targetDivision = schedule.division || division || 'super'
     }
 
     // Check if this schedule already exists
     const existingSchedules = storage.getSchedules()
-    const exists = existingSchedules.some(s => s.startDate === nextStartDate.toISOString().split('T')[0])
+    const exists = existingSchedules.some(s =>
+      s.startDate === startDate.toISOString().split('T')[0] &&
+      s.branchCode === targetBranchCode &&
+      s.division === targetDivision
+    )
 
     if (exists) {
       alert('Este horario ya existe en el historial.')
@@ -1709,14 +1721,14 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
     const templates = getDefaultShiftTemplates()
     const newSchedule = generateWeeklySchedule(
-      nextStartDate.toISOString().split('T')[0],
+      startDate.toISOString().split('T')[0],
       scheduleName,
       templates
     )
 
-    // Preserve organizational context
-    newSchedule.branchCode = schedule.branchCode
-    newSchedule.division = schedule.division
+    // Tag schedule with organizational context
+    newSchedule.branchCode = targetBranchCode
+    newSchedule.division = targetDivision
 
     storage.addSchedule(newSchedule)
     onUpdate()
@@ -1726,8 +1738,31 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   if (!schedule) {
     return (
       <div className="card text-center py-12">
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No schedule selected</h3>
-        <p className="text-gray-600">Select a schedule to view in grid mode.</p>
+        <div className="max-w-md mx-auto space-y-4">
+          <Calendar className="h-16 w-16 text-gray-400 mx-auto" />
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No hay horario seleccionado</h3>
+            <p className="text-gray-600 mb-4">
+              Selecciona un horario desde el historial o crea uno nuevo para la quincena actual.
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-3">
+            <button
+              onClick={handleCreateNextSchedule}
+              className="btn btn-primary inline-flex items-center space-x-2"
+            >
+              <Plus className="h-5 w-5" />
+              <span>Crear Nuevo Horario</span>
+            </button>
+            <button
+              onClick={() => csvFileInputRef.current?.click()}
+              className="btn btn-secondary inline-flex items-center space-x-2"
+            >
+              <Upload className="h-5 w-5" />
+              <span>Importar CSV</span>
+            </button>
+          </div>
+        </div>
       </div>
     )
   }
@@ -1748,47 +1783,103 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       )}
 
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">Grid View</h2>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={handleCreateNextSchedule}
-              className="btn btn-secondary flex items-center space-x-2"
-              title="Crear siguiente quincena"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Nuevo Horario</span>
-            </button>
-            <button
-              onClick={exportToJSON}
-              className="btn btn-secondary flex items-center space-x-2"
-              title="Exportar horario a JSON"
-            >
-              <FileJson className="h-4 w-4" />
-              <span>Exportar JSON</span>
-            </button>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="btn btn-secondary flex items-center space-x-2"
-              title="Importar horario desde JSON"
-            >
-              <Upload className="h-4 w-4" />
-              <span>Importar JSON</span>
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".json"
-              onChange={importFromJSON}
-              className="hidden"
-            />
-            <button
-              onClick={exportToPDF}
-              className="btn btn-primary flex items-center space-x-2"
-            >
-              <Download className="h-4 w-4" />
-              <span>Export PDF</span>
-            </button>
+        {/* Header con acciones */}
+        <div className="card">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-4">
+            <h2 className="text-2xl font-bold text-gray-900">Grid View</h2>
+
+            <div className="flex items-center gap-3">
+              {/* Menú desplegable */}
+              <div className="relative" ref={actionsMenuRef}>
+                <button
+                  onClick={() => setIsActionsMenuOpen(!isActionsMenuOpen)}
+                  className="btn btn-primary flex items-center space-x-2"
+                  title="Menú de opciones"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                  <span>Menú</span>
+                </button>
+
+                {/* Dropdown menu */}
+                {isActionsMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                    <div className="py-1">
+                      {/* Exportar PDF */}
+                      <button
+                        onClick={() => {
+                          handleExportToPDF()
+                          setIsActionsMenuOpen(false)
+                        }}
+                        className="w-full px-4 py-2.5 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                      >
+                        <Download className="h-4 w-4 text-gray-600" />
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">Exportar PDF</div>
+                          <div className="text-xs text-gray-500">Descargar en PDF</div>
+                        </div>
+                      </button>
+
+                      <div className="border-t border-gray-100 my-1"></div>
+
+                      {/* Nuevo Horario */}
+                      <button
+                        onClick={() => {
+                          handleCreateNextSchedule()
+                          setIsActionsMenuOpen(false)
+                        }}
+                        className="w-full px-4 py-2.5 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                      >
+                        <Plus className="h-4 w-4 text-gray-600" />
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">Nuevo Horario</div>
+                          <div className="text-xs text-gray-500">Crear siguiente quincena</div>
+                        </div>
+                      </button>
+
+                      <div className="border-t border-gray-100 my-1"></div>
+
+                      {/* Exportar CSV */}
+                      <button
+                        onClick={() => {
+                          handleExportToCSV()
+                          setIsActionsMenuOpen(false)
+                        }}
+                        className="w-full px-4 py-2.5 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                      >
+                        <FileSpreadsheet className="h-4 w-4 text-gray-600" />
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">Exportar CSV</div>
+                          <div className="text-xs text-gray-500">Descargar para Excel</div>
+                        </div>
+                      </button>
+
+                      {/* Importar CSV */}
+                      <button
+                        onClick={() => {
+                          csvFileInputRef.current?.click()
+                          setIsActionsMenuOpen(false)
+                        }}
+                        className="w-full px-4 py-2.5 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                      >
+                        <Upload className="h-4 w-4 text-gray-600" />
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">Importar CSV</div>
+                          <div className="text-xs text-gray-500">Cargar desde Excel</div>
+                        </div>
+                      </button>
+
+                      <input
+                        ref={csvFileInputRef}
+                        type="file"
+                        accept=".csv"
+                        onChange={handleImportFromCSV}
+                        className="hidden"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
