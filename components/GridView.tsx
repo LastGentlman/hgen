@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Employee, Schedule, ShiftStatus, ShiftType, CoverageInfo, PositionType, BranchCode, Division } from '@/types'
 import { storage } from '@/lib/storage'
 import { formatTime, generateWeeklySchedule, getDefaultShiftTemplates, parseLocalDate } from '@/lib/utils'
-import { Download, Plus } from 'lucide-react'
+import { Download, Plus, FileJson, Upload } from 'lucide-react'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
@@ -41,6 +41,40 @@ const ItemTypes = {
   VACATION_CELL: 'vacation_cell'
 }
 
+// Helper function to get coverage tooltip
+function getCoverageTooltip(coverageInfo?: CoverageInfo): string {
+  if (!coverageInfo) return 'Cubriendo'
+
+  const shiftLabels: Record<string, string> = {
+    'morning': 'Turno 1 (7:00-15:00)',
+    'afternoon': 'Turno 2 (15:00-23:00)',
+    'night': 'Turno 3 (23:00-7:00)'
+  }
+
+  // New format: branch + shift
+  if (coverageInfo.type === 'branch' && coverageInfo.targetBranch && coverageInfo.targetShift) {
+    const shiftLabel = shiftLabels[coverageInfo.targetShift] || 'Turno ?'
+    return `Cubriendo Sucursal ${coverageInfo.targetBranch} - ${shiftLabel}`
+  }
+
+  // New format: shift only
+  if (coverageInfo.type === 'shift' && coverageInfo.targetShift) {
+    return shiftLabels[coverageInfo.targetShift] ? `Cubriendo ${shiftLabels[coverageInfo.targetShift]}` : 'Cubriendo'
+  }
+
+  // Legacy format: backward compatibility - shift
+  if (coverageInfo.type === 'shift' && coverageInfo.target) {
+    return shiftLabels[coverageInfo.target] ? `Cubriendo ${shiftLabels[coverageInfo.target]}` : 'Cubriendo'
+  }
+
+  // Legacy format: backward compatibility - branch
+  if (coverageInfo.type === 'branch' && coverageInfo.target) {
+    return `Cubriendo Sucursal ${coverageInfo.target}`
+  }
+
+  return 'Cubriendo'
+}
+
 // Coverage Menu Component
 interface CoverageMenuProps {
   isOpen: boolean
@@ -48,34 +82,83 @@ interface CoverageMenuProps {
   currentInfo: CoverageInfo | null
   onSelect: (coverageInfo: CoverageInfo) => void
   onClose: () => void
+  currentBranchCode?: BranchCode
+  currentShiftType?: ShiftType
 }
 
-function CoverageMenu({ isOpen, position, currentInfo, onSelect, onClose }: CoverageMenuProps) {
-  const [branchName, setBranchName] = useState('')
-  const [showBranchInput, setShowBranchInput] = useState(false)
+function CoverageMenu({ isOpen, position, currentInfo, onSelect, onClose, currentBranchCode, currentShiftType }: CoverageMenuProps) {
+  const [selectedBranch, setSelectedBranch] = useState<BranchCode | null>(null)
+
+  // Reset selected branch when menu closes
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedBranch(null)
+    }
+  }, [isOpen])
 
   if (!isOpen) return null
 
-  const handleShiftSelect = (shiftType: string) => {
-    onSelect({ type: 'shift', target: shiftType })
+  const handleClose = () => {
+    setSelectedBranch(null)
     onClose()
   }
 
-  const handleBranchSubmit = () => {
-    if (branchName.trim()) {
-      onSelect({ type: 'branch', target: branchName.trim() })
-      setBranchName('')
-      setShowBranchInput(false)
-      onClose()
-    }
+  const handleShiftSelect = (shiftType: string) => {
+    onSelect({ type: 'shift', targetShift: shiftType })
+    onClose()
   }
+
+  const handleBranchClick = (branchCode: BranchCode) => {
+    // Show shift selection sub-menu for this branch
+    setSelectedBranch(branchCode)
+  }
+
+  const handleBranchShiftSelect = (branchCode: BranchCode, shiftType: string) => {
+    onSelect({ type: 'branch', targetBranch: branchCode, targetShift: shiftType })
+    onClose()
+  }
+
+  const handleBack = () => {
+    setSelectedBranch(null)
+  }
+
+  // Filter out current shift - can't cover your own shift in same branch
+  // When covering another branch (type='branch'), you CAN cover same shift
+  // Also filter out night shift (T3) for branch 002
+  const shiftOptions = [
+    { type: 'morning', label: 'Turno 1', time: '7:00 - 15:00' },
+    { type: 'afternoon', label: 'Turno 2', time: '15:00 - 23:00' },
+    { type: 'night', label: 'Turno 3', time: '23:00 - 7:00' }
+  ].filter(shift => {
+    // Can't cover your own shift in your own branch (type='shift' selection)
+    if (shift.type === currentShiftType) return false
+    if (shift.type === 'night' && currentBranchCode === '002') return false // Branch 002 doesn't have T3
+    return true
+  })
+
+  // Get shift options for a specific branch (filter out T3 for branch 002)
+  const getBranchShiftOptions = (branchCode: BranchCode) => {
+    return [
+      { type: 'morning', label: 'Turno 1', time: '7:00 - 15:00' },
+      { type: 'afternoon', label: 'Turno 2', time: '15:00 - 23:00' },
+      { type: 'night', label: 'Turno 3', time: '23:00 - 7:00' }
+    ].filter(shift => {
+      if (shift.type === 'night' && branchCode === '002') return false // Branch 002 doesn't have T3
+      return true
+    })
+  }
+
+  // Filter out current branch - can't cover your own branch
+  const branchOptions: BranchCode[] = (['001', '002', '003'] as BranchCode[]).filter(
+    branch => branch !== currentBranchCode
+  )
 
   return (
     <>
       {/* Backdrop to close menu */}
       <div
         className="fixed inset-0 z-40"
-        onClick={onClose}
+        onClick={handleClose}
       />
 
       {/* Menu */}
@@ -86,79 +169,79 @@ function CoverageMenu({ isOpen, position, currentInfo, onSelect, onClose }: Cove
           top: `${position.y}px`,
         }}
       >
-        <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">
-          ¿Qué está cubriendo?
-        </div>
+        {!selectedBranch ? (
+          <>
+            {/* Main Menu */}
+            {shiftOptions.length > 0 && (
+              <>
+                <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">
+                  ¿Qué está cubriendo?
+                </div>
 
-        <button
-          onClick={() => handleShiftSelect('morning')}
-          className={`w-full text-left px-4 py-2 hover:bg-gray-100 transition-colors ${
-            currentInfo?.type === 'shift' && currentInfo?.target === 'morning' ? 'bg-primary-50 text-primary-700' : ''
-          }`}
-        >
-          <span className="font-medium">Turno 1</span>
-          <span className="text-sm text-gray-500 ml-2">(7:00 - 15:00)</span>
-        </button>
+                {shiftOptions.map(shift => (
+                  <button
+                    key={shift.type}
+                    onClick={() => handleShiftSelect(shift.type)}
+                    className={`w-full text-left px-4 py-2 hover:bg-gray-100 transition-colors ${
+                      currentInfo?.type === 'shift' && currentInfo?.targetShift === shift.type ? 'bg-primary-50 text-primary-700' : ''
+                    }`}
+                  >
+                    <span className="font-medium">{shift.label}</span>
+                    <span className="text-sm text-gray-500 ml-2">({shift.time})</span>
+                  </button>
+                ))}
+              </>
+            )}
 
-        <button
-          onClick={() => handleShiftSelect('afternoon')}
-          className={`w-full text-left px-4 py-2 hover:bg-gray-100 transition-colors ${
-            currentInfo?.type === 'shift' && currentInfo?.target === 'afternoon' ? 'bg-primary-50 text-primary-700' : ''
-          }`}
-        >
-          <span className="font-medium">Turno 2</span>
-          <span className="text-sm text-gray-500 ml-2">(15:00 - 23:00)</span>
-        </button>
+            {branchOptions.length > 0 && (
+              <>
+                <div className="border-t border-gray-200 my-2" />
 
-        <button
-          onClick={() => handleShiftSelect('night')}
-          className={`w-full text-left px-4 py-2 hover:bg-gray-100 transition-colors ${
-            currentInfo?.type === 'shift' && currentInfo?.target === 'night' ? 'bg-primary-50 text-primary-700' : ''
-          }`}
-        >
-          <span className="font-medium">Turno 3</span>
-          <span className="text-sm text-gray-500 ml-2">(23:00 - 7:00)</span>
-        </button>
+                <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">
+                  Sucursales
+                </div>
 
-        <div className="border-t border-gray-200 my-2" />
-
-        {!showBranchInput ? (
-          <button
-            onClick={() => setShowBranchInput(true)}
-            className="w-full text-left px-4 py-2 hover:bg-gray-100 transition-colors"
-          >
-            <span className="font-medium">Sucursal...</span>
-          </button>
+                {branchOptions.map(branch => (
+                  <button
+                    key={branch}
+                    onClick={() => handleBranchClick(branch)}
+                    className="w-full text-left px-4 py-2 hover:bg-gray-100 transition-colors flex items-center justify-between"
+                  >
+                    <span className="font-medium">Sucursal {branch}</span>
+                    <span className="text-gray-400">›</span>
+                  </button>
+                ))}
+              </>
+            )}
+          </>
         ) : (
-          <div className="px-4 py-2">
-            <input
-              type="text"
-              value={branchName}
-              onChange={(e) => setBranchName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleBranchSubmit()}
-              placeholder="Nombre de sucursal"
-              className="input text-sm w-full"
-              autoFocus
-            />
-            <div className="flex space-x-2 mt-2">
+          <>
+            {/* Branch Shift Selection Sub-Menu */}
+            <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase flex items-center">
               <button
-                onClick={handleBranchSubmit}
-                disabled={!branchName.trim()}
-                className="btn btn-primary text-xs py-1"
+                onClick={handleBack}
+                className="mr-2 text-gray-400 hover:text-gray-600"
               >
-                Guardar
+                ‹
               </button>
-              <button
-                onClick={() => {
-                  setBranchName('')
-                  setShowBranchInput(false)
-                }}
-                className="btn btn-secondary text-xs py-1"
-              >
-                Cancelar
-              </button>
+              Sucursal {selectedBranch} - Turno
             </div>
-          </div>
+
+            {getBranchShiftOptions(selectedBranch).map(shift => (
+              <button
+                key={shift.type}
+                onClick={() => handleBranchShiftSelect(selectedBranch, shift.type)}
+                className={`w-full text-left px-4 py-2 hover:bg-gray-100 transition-colors ${
+                  currentInfo?.type === 'branch' &&
+                  currentInfo?.targetBranch === selectedBranch &&
+                  currentInfo?.targetShift === shift.type ? 'bg-primary-50 text-primary-700' : ''
+                }`}
+              >
+                <span className="font-medium">{shift.label}</span>
+                <span className="text-sm text-gray-500 ml-2">({shift.time})</span>
+              </button>
+            ))}
+          </>
         )}
       </div>
     </>
@@ -172,7 +255,7 @@ interface DraggableVacationCellProps {
   shiftType: ShiftType
   status: ShiftStatus
   config: { label: string; bg: string; color: string; border: string }
-  onCellClick: () => void
+  onCellClick: (e: React.MouseEvent) => void
   onContextMenu: (e: React.MouseEvent) => void
   onVacationDrop: (targetDayIndex: number) => void
   onCellMouseDown: (e: React.MouseEvent) => void
@@ -180,9 +263,10 @@ interface DraggableVacationCellProps {
   colSpan?: number
   isSelected?: boolean
   isMultiSelected?: boolean
+  coverageInfo?: CoverageInfo
 }
 
-function DraggableVacationCell({ employee, dayIndex, shiftType, status, config, onCellClick, onContextMenu, onVacationDrop, onCellMouseDown, onCellMouseEnter, colSpan = 1, isSelected = false, isMultiSelected = false }: DraggableVacationCellProps) {
+function DraggableVacationCell({ employee, dayIndex, shiftType, status, config, onCellClick, onContextMenu, onVacationDrop, onCellMouseDown, onCellMouseEnter, colSpan = 1, isSelected = false, isMultiSelected = false, coverageInfo }: DraggableVacationCellProps) {
   // Make vacation cells draggable
   const [{ isDragging }, drag] = useDrag<
     { employeeId: string; shiftType: ShiftType; sourceDayIndex: number },
@@ -229,6 +313,45 @@ function DraggableVacationCell({ employee, dayIndex, shiftType, status, config, 
 
   const opacity = isDragging ? 0.5 : 1
 
+  // Get dynamic label and tooltip for covering status
+  const tooltip = status === 'covering' ? getCoverageTooltip(coverageInfo) : undefined
+
+  // Get discrete coverage info
+  const getCoverageInfo = () => {
+    if (status !== 'covering' || !coverageInfo) return null
+
+    const shiftLabels: Record<string, string> = {
+      'morning': 'T1',
+      'afternoon': 'T2',
+      'night': 'T3'
+    }
+
+    // New format: branch + shift
+    if (coverageInfo.type === 'branch' && coverageInfo.targetBranch && coverageInfo.targetShift) {
+      const shiftLabel = shiftLabels[coverageInfo.targetShift] || 'T?'
+      return `${coverageInfo.targetBranch} ${shiftLabel}`
+    }
+
+    // New format: shift only
+    if (coverageInfo.type === 'shift' && coverageInfo.targetShift) {
+      return shiftLabels[coverageInfo.targetShift] || 'T?'
+    }
+
+    // Legacy format: backward compatibility - shift
+    if (coverageInfo.type === 'shift' && coverageInfo.target) {
+      return shiftLabels[coverageInfo.target] || 'T?'
+    }
+
+    // Legacy format: backward compatibility - branch
+    if (coverageInfo.type === 'branch' && coverageInfo.target) {
+      return coverageInfo.target
+    }
+
+    return null
+  }
+
+  const coverageInfoText = getCoverageInfo()
+
   return (
     <td
       ref={(node) => {
@@ -240,6 +363,7 @@ function DraggableVacationCell({ employee, dayIndex, shiftType, status, config, 
       onMouseDown={onCellMouseDown}
       onMouseEnter={onCellMouseEnter}
       colSpan={colSpan}
+      title={tooltip}
       style={{
         border: `1px solid ${config.border}`,
         backgroundColor: finalBackgroundColor,
@@ -256,7 +380,17 @@ function DraggableVacationCell({ employee, dayIndex, shiftType, status, config, 
         zIndex: isSelected ? 10 : isMultiSelected ? 5 : 1
       }}
     >
-      {config.label}
+      <div>{config.label}</div>
+      {coverageInfoText && (
+        <div style={{
+          fontSize: '10px',
+          fontWeight: 'normal',
+          color: '#666',
+          marginTop: '2px'
+        }}>
+          ({coverageInfoText})
+        </div>
+      )}
     </td>
   )
 }
@@ -267,7 +401,7 @@ interface DraggableEmployeeRowProps {
   shiftType: ShiftType
   schedule: Schedule
   employees: Employee[]
-  onCellClick: (employeeId: string, dayIndex: number, shiftType: ShiftType) => void
+  onCellClick: (employeeId: string, dayIndex: number, shiftType: ShiftType, e?: React.MouseEvent) => void
   onContextMenu: (e: React.MouseEvent, employeeId: string, dayIndex: number, shiftType: ShiftType) => void
   onPositionChange: (employeeId: string, position: PositionType) => void
   getShiftForDay: (dayIndex: number, shiftType: ShiftType, employeeId?: string) => any
@@ -278,9 +412,10 @@ interface DraggableEmployeeRowProps {
   selectedCells: Set<string>
   isCoveringRow?: boolean
   coveringDays?: number[]
+  branchCode?: BranchCode
 }
 
-function DraggableEmployeeRow({ employee, shiftType, schedule, employees, onCellClick, onContextMenu, onPositionChange, getShiftForDay, onVacationDrop, onCellMouseDown, onCellMouseEnter, selectedCell, selectedCells, isCoveringRow = false, coveringDays = [] }: DraggableEmployeeRowProps) {
+function DraggableEmployeeRow({ employee, shiftType, schedule, employees, onCellClick, onContextMenu, onPositionChange, getShiftForDay, onVacationDrop, onCellMouseDown, onCellMouseEnter, selectedCell, selectedCells, isCoveringRow = false, coveringDays = [], branchCode }: DraggableEmployeeRowProps) {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: ItemTypes.EMPLOYEE_ROW,
     item: { employee, fromShift: shiftType },
@@ -415,7 +550,7 @@ function DraggableEmployeeRow({ employee, shiftType, schedule, employees, onCell
             shiftType={shiftType}
             status={status}
             config={{ ...config, label }}
-            onCellClick={() => onCellClick(employee.id, dayIndex, shiftType)}
+            onCellClick={(e) => onCellClick(employee.id, dayIndex, shiftType, e)}
             onContextMenu={(e) => onContextMenu(e, employee.id, dayIndex, shiftType)}
             onVacationDrop={(targetDayIndex) => onVacationDrop(employee.id, targetDayIndex, shiftType)}
             onCellMouseDown={(e) => onCellMouseDown(employee.id, dayIndex, shiftType, e)}
@@ -423,6 +558,7 @@ function DraggableEmployeeRow({ employee, shiftType, schedule, employees, onCell
             colSpan={vacationBlock.length}
             isSelected={selectedCell?.employeeId === employee.id && selectedCell?.dayIndex === dayIndex && selectedCell?.shiftType === shiftType}
             isMultiSelected={selectedCells.has(cellKey)}
+            coverageInfo={shift?.coverageInfo}
           />
         )
       } else {
@@ -438,13 +574,14 @@ function DraggableEmployeeRow({ employee, shiftType, schedule, employees, onCell
             shiftType={shiftType}
             status={status}
             config={config}
-            onCellClick={() => onCellClick(employee.id, dayIndex, shiftType)}
+            onCellClick={(e) => onCellClick(employee.id, dayIndex, shiftType, e)}
             onContextMenu={(e) => onContextMenu(e, employee.id, dayIndex, shiftType)}
             onVacationDrop={(targetDayIndex) => onVacationDrop(employee.id, targetDayIndex, shiftType)}
             onCellMouseDown={(e) => onCellMouseDown(employee.id, dayIndex, shiftType, e)}
             onCellMouseEnter={() => onCellMouseEnter(employee.id, dayIndex, shiftType)}
             isSelected={selectedCell?.employeeId === employee.id && selectedCell?.dayIndex === dayIndex && selectedCell?.shiftType === shiftType}
             isMultiSelected={selectedCells.has(cellKey)}
+            coverageInfo={shift?.coverageInfo}
           />
         )
       }
@@ -498,7 +635,9 @@ function DraggableEmployeeRow({ employee, shiftType, schedule, employees, onCell
           </>
         ) : (
           <>
-            {employee.name} <span style={{ fontWeight: 'normal', fontSize: '11px', color: '#666' }}>(cubriendo)</span>
+            {employee.name} <span style={{ fontWeight: 'normal', fontSize: '11px', color: '#666' }}>
+              (cubriendo{employee.branchCode && employee.branchCode !== branchCode ? ` desde ${employee.branchCode}` : ''})
+            </span>
           </>
         )}
       </td>
@@ -568,6 +707,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set())
 
   const tableRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Update the visible title based on selected division/branch (e.g., SUPER 001)
   useEffect(() => {
@@ -841,8 +981,24 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     return day.shifts.find(s => s.startTime === startTime && s.endTime === endTime)
   }
 
-  const handleCellClick = (employeeId: string, dayIndex: number, shiftType: ShiftType) => {
-    // Clear multi-selection and set single cell
+  const handleCellClick = (employeeId: string, dayIndex: number, shiftType: ShiftType, e?: React.MouseEvent) => {
+    const cellKey = `${employeeId}-${dayIndex}-${shiftType}`
+
+    // Ctrl+Click: Toggle cell in multi-selection
+    if (e?.ctrlKey) {
+      const newSelection = new Set(selectedCells)
+      if (newSelection.has(cellKey)) {
+        newSelection.delete(cellKey)
+      } else {
+        newSelection.add(cellKey)
+      }
+      setSelectedCells(newSelection)
+      setSelectedCell(null)
+      setSelectionStart(null)
+      return
+    }
+
+    // Regular click: Clear multi-selection and set single cell
     setSelectedCells(new Set())
     setSelectionStart(null)
     setSelectedCell({ employeeId, dayIndex, shiftType })
@@ -851,6 +1007,9 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   const handleCellMouseDown = (employeeId: string, dayIndex: number, shiftType: ShiftType, e: React.MouseEvent) => {
     // Prevent text selection
     e.preventDefault()
+
+    // Don't start brush selection if Ctrl is pressed (Ctrl+Click handles its own selection)
+    if (e.ctrlKey) return
 
     // Start multi-selection
     setIsSelecting(true)
@@ -1018,9 +1177,9 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       targetShift.status = targetStatus
       targetShift.isAssigned = targetStatus === 'assigned'
 
-      // If switching to 'covering', set default coverage
+      // If switching to 'covering', set default coverage (new format)
       if (targetStatus === 'covering' && !targetShift.coverageInfo) {
-        targetShift.coverageInfo = { type: 'shift', target: 'night' }
+        targetShift.coverageInfo = { type: 'shift', targetShift: 'night' }
       }
 
       // If switching away from 'covering', clear coverage info
@@ -1046,6 +1205,16 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
     e.preventDefault() // Prevent browser context menu
 
+    // Smart default: if T3 from 001 → default to 003 T3, if T3 from 003 → default to 001 T3
+    let defaultInfo: CoverageInfo | null = null
+    if (!shift.coverageInfo && shiftType === 'night') {
+      if (branchCode === '001') {
+        defaultInfo = { type: 'branch', targetBranch: '003', targetShift: 'night' }
+      } else if (branchCode === '003') {
+        defaultInfo = { type: 'branch', targetBranch: '001', targetShift: 'night' }
+      }
+    }
+
     setCoverageMenu({
       isOpen: true,
       position: { x: e.clientX, y: e.clientY },
@@ -1053,7 +1222,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       employeeId,
       dayIndex,
       shiftType,
-      currentInfo: shift.coverageInfo || null
+      currentInfo: shift.coverageInfo || defaultInfo
     })
   }
 
@@ -1341,6 +1510,71 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     }
   }
 
+  const exportToJSON = () => {
+    if (!schedule) return
+
+    try {
+      const jsonData = JSON.stringify(schedule, null, 2)
+      const blob = new Blob([jsonData], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${schedule.name}.json`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Error exporting JSON:', error)
+      alert('Error al exportar JSON. Por favor intenta de nuevo.')
+    }
+  }
+
+  const importFromJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string
+        const importedSchedule = JSON.parse(content) as Schedule
+
+        // Validate imported schedule structure
+        if (!importedSchedule.id || !importedSchedule.name || !importedSchedule.days) {
+          throw new Error('Formato de horario inválido')
+        }
+
+        // Check if schedule already exists
+        const existingSchedules = storage.getSchedules()
+        const exists = existingSchedules.some(s => s.id === importedSchedule.id)
+
+        if (exists) {
+          const confirmOverwrite = confirm(`El horario "${importedSchedule.name}" ya existe. ¿Deseas sobrescribirlo?`)
+          if (confirmOverwrite) {
+            storage.updateSchedule(importedSchedule.id, importedSchedule)
+          } else {
+            return
+          }
+        } else {
+          storage.addSchedule(importedSchedule)
+        }
+
+        onUpdate()
+        alert(`✅ Horario importado: ${importedSchedule.name}`)
+      } catch (error) {
+        console.error('Error importing JSON:', error)
+        alert('Error al importar JSON. Verifica que el archivo sea válido.')
+      }
+    }
+    reader.readAsText(file)
+
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
   const getEmployeesByShift = (shiftType: ShiftType) => {
     return employees.filter(emp => emp.assignedShift === shiftType)
   }
@@ -1404,10 +1638,31 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
           employeeShift &&
           employeeShift.employeeId === employee.id &&
           employeeShift.status === 'covering' &&
-          employeeShift.coverageInfo?.type === 'shift' &&
-          employeeShift.coverageInfo.target === targetShiftType
+          employeeShift.coverageInfo
         ) {
-          coveringDays.push(dayIndex)
+          // New format: covering shift in same branch
+          if (
+            employeeShift.coverageInfo.type === 'shift' &&
+            employeeShift.coverageInfo.targetShift === targetShiftType
+          ) {
+            coveringDays.push(dayIndex)
+          }
+          // New format: covering THIS branch + THIS shift from another branch
+          else if (
+            employeeShift.coverageInfo.type === 'branch' &&
+            employeeShift.coverageInfo.targetBranch === branchCode &&
+            employeeShift.coverageInfo.targetShift === targetShiftType
+          ) {
+            coveringDays.push(dayIndex)
+          }
+          // Legacy format: backward compatibility
+          else if (
+            employeeShift.coverageInfo.type === 'shift' &&
+            employeeShift.coverageInfo.target === targetShiftType &&
+            !employeeShift.coverageInfo.targetShift // Only if new format doesn't exist
+          ) {
+            coveringDays.push(dayIndex)
+          }
         }
       })
 
@@ -1487,6 +1742,8 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
           currentInfo={coverageMenu.currentInfo}
           onSelect={handleCoverageSelect}
           onClose={() => setCoverageMenu(null)}
+          currentBranchCode={branchCode}
+          currentShiftType={coverageMenu.shiftType}
         />
       )}
 
@@ -1502,6 +1759,29 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
               <Plus className="h-4 w-4" />
               <span>Nuevo Horario</span>
             </button>
+            <button
+              onClick={exportToJSON}
+              className="btn btn-secondary flex items-center space-x-2"
+              title="Exportar horario a JSON"
+            >
+              <FileJson className="h-4 w-4" />
+              <span>Exportar JSON</span>
+            </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="btn btn-secondary flex items-center space-x-2"
+              title="Importar horario desde JSON"
+            >
+              <Upload className="h-4 w-4" />
+              <span>Importar JSON</span>
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              onChange={importFromJSON}
+              className="hidden"
+            />
             <button
               onClick={exportToPDF}
               className="btn btn-primary flex items-center space-x-2"
@@ -1573,6 +1853,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
                     onCellMouseEnter={handleCellMouseEnter}
                     selectedCell={selectedCell}
                     selectedCells={selectedCells}
+                    branchCode={branchCode}
                   />
                 ))}
                 {/* Covering employees from other shifts */}
@@ -1594,6 +1875,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
                     selectedCells={selectedCells}
                     isCoveringRow={true}
                     coveringDays={coveringDays}
+                    branchCode={branchCode}
                   />
                 ))}
               </>
@@ -1634,6 +1916,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
                     onCellMouseEnter={handleCellMouseEnter}
                     selectedCell={selectedCell}
                     selectedCells={selectedCells}
+                    branchCode={branchCode}
                   />
                 ))}
                 {/* Covering employees from other shifts */}
@@ -1655,6 +1938,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
                     selectedCells={selectedCells}
                     isCoveringRow={true}
                     coveringDays={coveringDays}
+                    branchCode={branchCode}
                   />
                 ))}
               </>
@@ -1695,6 +1979,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
                     onCellMouseEnter={handleCellMouseEnter}
                     selectedCell={selectedCell}
                     selectedCells={selectedCells}
+                    branchCode={branchCode}
                   />
                 ))}
                 {/* Covering employees from other shifts */}
@@ -1716,6 +2001,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
                     selectedCells={selectedCells}
                     isCoveringRow={true}
                     coveringDays={coveringDays}
+                    branchCode={branchCode}
                   />
                 ))}
               </>
@@ -1766,6 +2052,9 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
             <div>
               <div className="text-sm font-semibold text-gray-700 mb-2">Atajos de teclado</div>
               <div className="flex flex-wrap gap-3 text-sm">
+                <span className="bg-white px-2 py-1 rounded border border-gray-300">
+                  <kbd className="font-mono font-bold">Ctrl+Click</kbd> Selección múltiple
+                </span>
                 <span className="bg-white px-2 py-1 rounded border border-gray-300">
                   <kbd className="font-mono font-bold">V</kbd> Vacaciones
                 </span>

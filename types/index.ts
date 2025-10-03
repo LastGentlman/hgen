@@ -21,7 +21,9 @@ export type ShiftStatus = 'assigned' | 'rest' | 'vacation' | 'sick' | 'absent' |
 
 export interface CoverageInfo {
   type: 'shift' | 'branch'
-  target: string  // 'morning' | 'afternoon' | 'night' or branch name
+  target?: string  // DEPRECATED: kept for backward compatibility
+  targetShift?: string  // 'morning' | 'afternoon' | 'night'
+  targetBranch?: string // '001' | '002' | '003'
 }
 
 export type PositionType = 'C1' | 'C2' | 'C3' | 'EXT'

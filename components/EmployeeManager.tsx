@@ -32,12 +32,19 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
   }, [branchCode, division])
 
   const branchOptions: BranchCode[] = ['001', '002', '003']
-  const divisionOptions: Division[] = ['super', 'gasolinera', 'restaurant', 'limpieza']
+
+  // Filter divisions based on branch - 002 doesn't have restaurant
+  const divisionOptions: Division[] = (['super', 'gasolinera', 'restaurant', 'limpieza'] as Division[]).filter(
+    div => !(div === 'restaurant' && selectedBranchCode === '002')
+  )
 
   const defaultDays = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
   const getRandomShift = (): 'morning' | 'afternoon' | 'night' => {
-    const shifts: ('morning' | 'afternoon' | 'night')[] = ['morning', 'afternoon', 'night']
+    // Branch 002 doesn't have night shift
+    const shifts: ('morning' | 'afternoon' | 'night')[] = selectedBranchCode === '002'
+      ? ['morning', 'afternoon']
+      : ['morning', 'afternoon', 'night']
     return shifts[Math.floor(Math.random() * shifts.length)]
   }
 
@@ -293,7 +300,10 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
                 <option value="unassigned">Sin asignar</option>
                 <option value="morning">Turno 1 (7:00 - 15:00)</option>
                 <option value="afternoon">Turno 2 (15:00 - 23:00)</option>
-                <option value="night">Turno 3 (23:00 - 7:00)</option>
+                {/* Branch 002 doesn't have night shift */}
+                {(formData.branchCode || selectedBranchCode) !== '002' && (
+                  <option value="night">Turno 3 (23:00 - 7:00)</option>
+                )}
               </select>
             </div>
           </div>
@@ -439,7 +449,10 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
                       <option value="unassigned">Sin asignar</option>
                       <option value="morning">Turno 1 (7:00 - 15:00)</option>
                       <option value="afternoon">Turno 2 (15:00 - 23:00)</option>
-                      <option value="night">Turno 3 (23:00 - 7:00)</option>
+                      {/* Branch 002 doesn't have night shift */}
+                      {((formData.branchCode as BranchCode) || employee.branchCode || selectedBranchCode) !== '002' && (
+                        <option value="night">Turno 3 (23:00 - 7:00)</option>
+                      )}
                     </select>
                   </div>
                 </div>

@@ -230,9 +230,11 @@ export default function Home() {
                   onChange={(e) => setDivision(e.target.value as Division)}
                   className="input h-8 py-0 text-sm"
                 >
-                  {(['super','gasolinera','restaurant','limpieza'] as Division[]).map(d => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
+                  {(['super','gasolinera','restaurant','limpieza'] as Division[])
+                    .filter(d => !(d === 'restaurant' && branchCode === '002'))
+                    .map(d => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
                 </select>
               </div>
 
@@ -277,9 +279,11 @@ export default function Home() {
                 onChange={(e) => setDivision(e.target.value as Division)}
                 className="input h-8 py-0 text-sm"
               >
-                {(['super','gasolinera','restaurant','limpieza'] as Division[]).map(d => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
+                {(['super','gasolinera','restaurant','limpieza'] as Division[])
+                  .filter(d => !(d === 'restaurant' && branchCode === '002'))
+                  .map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
               </select>
             </div>
 
