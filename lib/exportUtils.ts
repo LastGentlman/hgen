@@ -4,6 +4,7 @@
  */
 
 import type { Schedule, Employee, Shift } from '@/types'
+import type { ParsedCSVData } from '@/lib/csvParser'
 
 export async function exportToPDF(
   element: HTMLElement,
@@ -184,7 +185,7 @@ export function importFromCSV(
         }
 
         // Parse CSV content
-        const parsedData = parser.parseCSVContent(content)
+        const parsedData = parser.parseCSVContent(content) as ParsedCSVData
         console.log('[importFromCSV] 📊 Parsed data:', {
           rows: parsedData.rows.length,
           dates: parsedData.dates.length,
@@ -237,7 +238,7 @@ export function importFromCSV(
           console.log('[importFromCSV] ✓ Schedule created:', updatedSchedule.name)
 
           // Create days for each unique date in CSV
-          parsedData.dates.forEach(date => {
+          parsedData.dates.forEach((date: string) => {
             const dateObj = new Date(date + 'T00:00:00')
             const dayName = dateObj.toLocaleDateString('es-ES', { weekday: 'long' })
 
