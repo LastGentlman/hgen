@@ -1532,20 +1532,72 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
   const handleImportFromCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (!file || !schedule) return
+    if (!file) {
+      console.log('[handleImportFromCSV] ❌ No file selected')
+      return
+    }
+
+    console.log('[handleImportFromCSV] 📂 File selected:', file.name, 'Size:', file.size)
 
     try {
       // Use ALL employees from storage, not just filtered ones
       const allEmployees = storage.getEmployees()
+      console.log('[handleImportFromCSV] 👥 Available employees:', allEmployees.length)
+
+      if (allEmployees.length === 0) {
+        alert('⚠️ No hay empleados registrados. Crea empleados primero antes de importar horarios.')
+        return
+      }
+
       const updatedSchedule = await importFromCSV(file, schedule, allEmployees)
 
-      // Update schedule in storage
-      storage.updateSchedule(schedule.id, updatedSchedule)
+      console.log('[handleImportFromCSV] ✓ Schedule imported:', {
+        id: updatedSchedule.id,
+        name: updatedSchedule.name,
+        days: updatedSchedule.days.length,
+        totalShifts: updatedSchedule.days.reduce((sum, day) => sum + day.shifts.length, 0)
+      })
+
+      // Validate schedule has data
+      const totalShifts = updatedSchedule.days.reduce((sum, day) => sum + day.shifts.length, 0)
+      if (totalShifts === 0) {
+        throw new Error('El horario importado no contiene turnos válidos')
+      }
+
+      if (schedule) {
+        // Update existing schedule
+        console.log('[handleImportFromCSV] 💾 Updating existing schedule:', schedule.id)
+        storage.updateSchedule(schedule.id, updatedSchedule)
+
+        // Verify it was saved
+        const savedSchedule = storage.getSchedules().find(s => s.id === schedule.id)
+        console.log('[handleImportFromCSV] ✓ Schedule updated in storage:', savedSchedule ? 'YES' : 'NO')
+
+        alert(`✅ Horario actualizado desde CSV\n${totalShifts} turnos procesados`)
+      } else {
+        // Create new schedule from CSV
+        // Tag with current organizational context
+        updatedSchedule.branchCode = branchCode || '001'
+        updatedSchedule.division = division || 'super'
+
+        console.log('[handleImportFromCSV] 💾 Creating new schedule')
+        storage.addSchedule(updatedSchedule)
+
+        // Verify it was saved
+        const allSchedules = storage.getSchedules()
+        const savedSchedule = allSchedules.find(s => s.id === updatedSchedule.id)
+        console.log('[handleImportFromCSV] ✓ Schedule saved in storage:', savedSchedule ? 'YES' : 'NO')
+        console.log('[handleImportFromCSV] 📊 Total schedules in storage:', allSchedules.length)
+
+        alert(`✅ Horario creado desde CSV: ${updatedSchedule.name}\n${totalShifts} turnos procesados`)
+      }
+
+      console.log('[handleImportFromCSV] 🔄 Triggering update...')
       onUpdate()
-      alert(`✅ Horario actualizado desde CSV`)
+      console.log('[handleImportFromCSV] ✓ Import completed successfully')
     } catch (error: any) {
-      console.error('Error importing CSV:', error)
-      alert(error.message || 'Error al importar CSV. Verifica que el archivo sea válido.')
+      console.error('[handleImportFromCSV] ❌ Error:', error)
+      alert(`❌ Error al importar CSV\n\n${error.message || 'Error desconocido'}\n\nRevisa la consola para más detalles.`)
     }
 
     // Reset input
@@ -1761,6 +1813,13 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
               <Upload className="h-5 w-5" />
               <span>Importar CSV</span>
             </button>
+            <input
+              ref={csvFileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleImportFromCSV}
+              className="hidden"
+            />
           </div>
         </div>
       </div>
