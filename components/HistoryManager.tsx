@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { Schedule, BranchCode, Division } from '@/types'
 import { storage } from '@/lib/storage'
 import { parseLocalDate } from '@/lib/utils'
-import { History, Eye, Trash2, Calendar, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
+import { exportAllSchedulesToCSV } from '@/lib/exportUtils'
+import { History, Eye, Trash2, Calendar, ChevronDown, ChevronUp, AlertTriangle, Download } from 'lucide-react'
 
 interface HistoryManagerProps {
   onScheduleSelect: (schedule: Schedule | null) => void
@@ -74,6 +75,19 @@ export default function HistoryManager({ onScheduleSelect, activeScheduleId, bra
     }
   }
 
+  const handleExportAll = () => {
+    try {
+      const employees = storage.getEmployees()
+      const timestamp = new Date().toISOString().split('T')[0]
+      const filename = `todos_los_horarios_${timestamp}.csv`
+
+      exportAllSchedulesToCSV(schedules, employees, filename)
+    } catch (error) {
+      console.error('Error exporting all schedules:', error)
+      alert('Error al exportar los horarios. Por favor, intenta de nuevo.')
+    }
+  }
+
   const getTotalDays = (schedule: Schedule) => {
     return schedule.days.length
   }
@@ -102,7 +116,15 @@ export default function HistoryManager({ onScheduleSelect, activeScheduleId, bra
         {isExpanded && (
           <div className="border-t p-6 space-y-4">
             {schedules.length > 0 && (
-              <div className="flex justify-end">
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={handleExportAll}
+                  className="text-xs text-gray-400 hover:text-primary-600 transition-colors flex items-center space-x-1"
+                  title="Exportar todos los horarios a CSV"
+                >
+                  <Download className="h-3 w-3" />
+                  <span>Exportar todo</span>
+                </button>
                 <button
                   onClick={handleClearAll}
                   className="text-xs text-gray-400 hover:text-red-600 transition-colors flex items-center space-x-1"

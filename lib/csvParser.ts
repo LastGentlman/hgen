@@ -14,6 +14,7 @@ export interface CSVRow {
   coverageType: string      // 'shift' | 'branch' | ''
   coverageBranch: string    // '001' | '002' | '003' | ''
   coverageShift: string     // 'morning' | 'afternoon' | 'night' | ''
+  scheduleName?: string     // Optional: name of schedule this row belongs to (for multi-schedule CSVs)
 }
 
 export interface ParsedCSVData {
@@ -127,13 +128,16 @@ export class CSVParser {
     // Parse CSV line handling quoted values
     const values = this.splitCSVLine(line)
 
-    // Support both old format (7 columns) and new format (10 columns with coverage info)
+    // Support multiple formats:
+    // - Old format: 7 columns (basic)
+    // - Coverage format: 10 columns (with coverage info)
+    // - Multi-schedule format: 11 columns (with schedule name)
     if (values.length < 7) {
       this.log(`⚠️ Line ${lineNumber}: Expected at least 7 columns, got ${values.length}`)
       return null
     }
 
-    let [date, dayName, shiftName, horario, employeeName, position, status, coverageType = '', coverageBranch = '', coverageShift = ''] = values
+    let [date, dayName, shiftName, horario, employeeName, position, status, coverageType = '', coverageBranch = '', coverageShift = '', scheduleName = ''] = values
 
     // Apply fill-forward for empty cells (common in Excel exports)
     if (previousValues) {
@@ -175,7 +179,8 @@ export class CSVParser {
       status: status.trim(),
       coverageType: coverageType.trim(),
       coverageBranch: coverageBranch.trim(),
-      coverageShift: coverageShift.trim()
+      coverageShift: coverageShift.trim(),
+      scheduleName: scheduleName.trim() || undefined
     }
   }
 
@@ -183,12 +188,18 @@ export class CSVParser {
    * Split CSV line handling quoted values correctly
    */
   private splitCSVLine(line: string): string[] {
+    // Strip outer quotes if the entire line is wrapped in quotes
+    let processedLine = line.trim()
+    if (processedLine.startsWith('"') && processedLine.endsWith('"')) {
+      processedLine = processedLine.slice(1, -1)
+    }
+
     const values: string[] = []
     let current = ''
     let inQuotes = false
 
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i]
+    for (let i = 0; i < processedLine.length; i++) {
+      const char = processedLine[i]
 
       if (char === '"') {
         inQuotes = !inQuotes

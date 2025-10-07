@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { Employee, Schedule, ShiftStatus, ShiftType, CoverageInfo, PositionType, BranchCode, Division } from '@/types'
 import { storage } from '@/lib/storage'
-import { formatTime, generateWeeklySchedule, getDefaultShiftTemplates, parseLocalDate } from '@/lib/utils'
-import { exportToPDF, exportToCSV, importFromCSV } from '@/lib/exportUtils'
+import { formatTime, generateWeeklySchedule, getDefaultShiftTemplates, parseLocalDate, generateId } from '@/lib/utils'
+import { exportToPDF, exportToCSV, importFromCSV, importAllSchedulesFromCSV } from '@/lib/exportUtils'
 import { Download, Plus, Upload, Calendar, FileSpreadsheet, MoreVertical } from 'lucide-react'
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
@@ -72,6 +72,228 @@ function getCoverageTooltip(coverageInfo?: CoverageInfo): string {
   }
 
   return 'Cubriendo'
+}
+
+// Employee Context Menu Component
+interface EmployeeContextMenuProps {
+  isOpen: boolean
+  position: { x: number; y: number }
+  employeeId: string
+  currentBranchCode: BranchCode
+  onTransfer: (employeeId: string, targetBranch: BranchCode) => void
+  onDelete: (employeeId: string) => void
+  onClose: () => void
+}
+
+function EmployeeContextMenu({ isOpen, position, employeeId, currentBranchCode, onTransfer, onDelete, onClose }: EmployeeContextMenuProps) {
+  if (!isOpen) return null
+
+  const branches: BranchCode[] = ['001', '002', '003']
+  const otherBranches = branches.filter(b => b !== currentBranchCode)
+
+  return (
+    <>
+      {/* Backdrop to close menu */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 999
+        }}
+      />
+
+      {/* Context Menu */}
+      <div
+        style={{
+          position: 'fixed',
+          top: position.y,
+          left: position.x,
+          backgroundColor: 'white',
+          border: '1px solid #ccc',
+          borderRadius: '4px',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+          zIndex: 1000,
+          minWidth: '200px'
+        }}
+      >
+        <div style={{ padding: '8px 0' }}>
+          <div style={{ padding: '4px 16px', fontSize: '12px', color: '#666', fontWeight: 'bold' }}>
+            Transferir a:
+          </div>
+          {otherBranches.map(branch => (
+            <button
+              key={branch}
+              onClick={() => {
+                onTransfer(employeeId, branch)
+                onClose()
+              }}
+              style={{
+                width: '100%',
+                padding: '8px 16px',
+                border: 'none',
+                backgroundColor: 'transparent',
+                textAlign: 'left',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0f0f0'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+              Sucursal {branch}
+            </button>
+          ))}
+          <div style={{ borderTop: '1px solid #eee', margin: '4px 0' }} />
+          <button
+            onClick={() => {
+              onDelete(employeeId)
+              onClose()
+            }}
+            style={{
+              width: '100%',
+              padding: '8px 16px',
+              border: 'none',
+              backgroundColor: 'transparent',
+              textAlign: 'left',
+              cursor: 'pointer',
+              fontSize: '14px',
+              color: '#DC2626'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#FEE2E2'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent'
+            }}
+          >
+            🗑️ Eliminar empleado
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// Confirm Delete Dialog Component
+interface ConfirmDeleteDialogProps {
+  isOpen: boolean
+  employeeName: string
+  onDeleteFromSchedule: () => void
+  onDeleteEmployee: () => void
+  onClose: () => void
+}
+
+function ConfirmDeleteDialog({ isOpen, employeeName, onDeleteFromSchedule, onDeleteEmployee, onClose }: ConfirmDeleteDialogProps) {
+  if (!isOpen) return null
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          zIndex: 1999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        {/* Dialog */}
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+            maxWidth: '400px',
+            width: '90%',
+            padding: '24px'
+          }}
+        >
+          <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 'bold', color: '#111' }}>
+            ¿Cómo deseas eliminar a {employeeName}?
+          </h3>
+          <p style={{ margin: '0 0 24px 0', fontSize: '14px', color: '#666' }}>
+            Elige una opción:
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {/* Delete from schedule only */}
+            <button
+              onClick={() => {
+                onDeleteFromSchedule()
+                onClose()
+              }}
+              style={{
+                padding: '12px 16px',
+                border: '1px solid #3B82F6',
+                backgroundColor: '#3B82F6',
+                color: 'white',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '500'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563EB'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3B82F6'}
+            >
+              📅 Solo de este horario
+            </button>
+
+            {/* Delete employee permanently */}
+            <button
+              onClick={() => {
+                onDeleteEmployee()
+                onClose()
+              }}
+              style={{
+                padding: '12px 16px',
+                border: '1px solid #DC2626',
+                backgroundColor: '#DC2626',
+                color: 'white',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '500'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#B91C1C'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#DC2626'}
+            >
+              🗑️ Como empleado (permanente)
+            </button>
+
+            {/* Cancel */}
+            <button
+              onClick={onClose}
+              style={{
+                padding: '12px 16px',
+                border: '1px solid #D1D5DB',
+                backgroundColor: 'white',
+                color: '#374151',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '500'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F9FAFB'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
 }
 
 // Coverage Menu Component
@@ -413,6 +635,7 @@ interface DraggableEmployeeRowProps {
   employees: Employee[]
   onCellClick: (employeeId: string, dayIndex: number, shiftType: ShiftType, e?: React.MouseEvent) => void
   onContextMenu: (e: React.MouseEvent, employeeId: string, dayIndex: number, shiftType: ShiftType) => void
+  onEmployeeContextMenu: (e: React.MouseEvent, employeeId: string) => void
   onPositionChange: (employeeId: string, position: PositionType) => void
   getShiftForDay: (dayIndex: number, shiftType: ShiftType, employeeId?: string) => any
   onVacationDrop: (employeeId: string, dayIndex: number, shiftType: ShiftType) => void
@@ -425,7 +648,7 @@ interface DraggableEmployeeRowProps {
   branchCode?: BranchCode
 }
 
-function DraggableEmployeeRow({ employee, shiftType, schedule, employees, onCellClick, onContextMenu, onPositionChange, getShiftForDay, onVacationDrop, onCellMouseDown, onCellMouseEnter, selectedCell, selectedCells, isCoveringRow = false, coveringDays = [], branchCode }: DraggableEmployeeRowProps) {
+function DraggableEmployeeRow({ employee, shiftType, schedule, employees, onCellClick, onContextMenu, onEmployeeContextMenu, onPositionChange, getShiftForDay, onVacationDrop, onCellMouseDown, onCellMouseEnter, selectedCell, selectedCells, isCoveringRow = false, coveringDays = [], branchCode }: DraggableEmployeeRowProps) {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: ItemTypes.EMPLOYEE_ROW,
     item: { employee, fromShift: shiftType },
@@ -602,16 +825,19 @@ function DraggableEmployeeRow({ employee, shiftType, schedule, employees, onCell
 
   return (
     <tr ref={!isCoveringRow ? drag as any : null} style={{ opacity: isDragging ? 0.5 : 1 }}>
-      <td style={{
-        border: '1px solid #000',
-        padding: '8px',
-        backgroundColor: '#FFFFFF',
-        textAlign: 'left',
-        cursor: !isCoveringRow ? 'move' : 'default',
-        fontStyle: isCoveringRow ? 'italic' : 'normal',
-        fontWeight: 'bold',
-        whiteSpace: 'nowrap'
-      }}>
+      <td
+        style={{
+          border: '1px solid #000',
+          padding: '8px',
+          backgroundColor: '#FFFFFF',
+          textAlign: 'left',
+          cursor: !isCoveringRow ? 'move' : 'default',
+          fontStyle: isCoveringRow ? 'italic' : 'normal',
+          fontWeight: 'bold',
+          whiteSpace: 'nowrap'
+        }}
+        onContextMenu={!isCoveringRow ? (e) => onEmployeeContextMenu(e, employee.id) : undefined}
+      >
         {!isCoveringRow ? (
           <>
             {employee.name} -{' '}
@@ -716,10 +942,68 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   } | null>(null)
   const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set())
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false)
+  const [employeeContextMenu, setEmployeeContextMenu] = useState<{
+    isOpen: boolean
+    position: { x: number; y: number }
+    employeeId: string
+  } | null>(null)
+  const [deleteDialog, setDeleteDialog] = useState<{
+    isOpen: boolean
+    employeeId: string
+    employeeName: string
+  } | null>(null)
+  const [hiddenEmployees, setHiddenEmployees] = useState<Set<string>>(new Set())
 
   const tableRef = useRef<HTMLDivElement>(null)
   const csvFileInputRef = useRef<HTMLInputElement>(null)
   const actionsMenuRef = useRef<HTMLDivElement>(null)
+
+  // Helper function to determine shift type from time
+  const getShiftTypeFromTime = (startTime: string, endTime: string): ShiftType | null => {
+    const time = `${startTime}-${endTime}`
+    if (time === '07:00-15:00') return 'morning'
+    if (time === '15:00-23:00') return 'afternoon'
+    if (time === '23:00-07:00') return 'night'
+    return null
+  }
+
+  // Calculate assigned shift dynamically for each employee based on THIS schedule
+  const getEmployeeAssignedShift = (employeeId: string): ShiftType => {
+    if (!schedule) return 'unassigned'
+
+    // Count shifts by type in THIS schedule
+    const shiftCounts = { morning: 0, afternoon: 0, night: 0 }
+
+    schedule.days.forEach(day => {
+      day.shifts.forEach(shift => {
+        if (shift.employeeId === employeeId && shift.status !== 'empty') {
+          const shiftType = getShiftTypeFromTime(shift.startTime, shift.endTime)
+          if (shiftType && shiftType !== 'unassigned') {
+            shiftCounts[shiftType]++
+          }
+        }
+      })
+    })
+
+    // The shift with most occurrences is the assigned shift
+    const maxCount = Math.max(shiftCounts.morning, shiftCounts.afternoon, shiftCounts.night)
+    if (maxCount === 0) return 'unassigned'
+
+    if (shiftCounts.morning === maxCount) return 'morning'
+    if (shiftCounts.afternoon === maxCount) return 'afternoon'
+    return 'night'
+  }
+
+  // Calculate assignedShift dynamically for each employee based on THIS schedule
+  // This allows for rotating schedules where an employee can be in different shifts in different schedules
+  const employeesWithShifts = useMemo(() => {
+    if (!schedule) return employees
+
+    return employees.map(emp => ({
+      ...emp,
+      assignedShift: getEmployeeAssignedShift(emp.id)
+    }))
+  }, [employees, schedule])
 
   // Update the visible title based on selected division/branch (e.g., SUPER 001)
   useEffect(() => {
@@ -727,6 +1011,11 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     const branchLabel = branchCode || '001'
     setCompanyName(`${divisionLabel} ${branchLabel}`)
   }, [branchCode, division])
+
+  // Clear hidden employees when schedule changes
+  useEffect(() => {
+    setHiddenEmployees(new Set())
+  }, [schedule?.id])
 
   // Close actions menu when clicking outside
   useEffect(() => {
@@ -757,7 +1046,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
     shiftTypes.forEach(shiftType => {
       // Get all employees assigned to this shift
-      const employeesInShift = employees.filter(emp => emp.assignedShift === shiftType)
+      const employeesInShift = employeesWithShifts.filter(emp => emp.assignedShift === shiftType)
       if (employeesInShift.length === 0) return
 
       // Available positions pool - Turno 3 (night) does NOT have C1
@@ -888,7 +1177,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       storage.updateSchedule(schedule.id, updatedSchedule)
       onUpdate()
     }
-  }, [schedule?.id, employees.length]) // Run when schedule changes or employee count changes
+  }, [schedule?.id, employeesWithShifts.length]) // Run when schedule changes or employee count changes
 
   // Hotkey handler for quick status assignment (single or multi-selection)
   useEffect(() => {
@@ -1272,10 +1561,87 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     onUpdate()
   }
 
+  const handleEmployeeContextMenu = (e: React.MouseEvent, employeeId: string) => {
+    e.preventDefault()
+    setEmployeeContextMenu({
+      isOpen: true,
+      position: { x: e.clientX, y: e.clientY },
+      employeeId
+    })
+  }
+
+  const handleEmployeeTransfer = (employeeId: string, targetBranch: BranchCode) => {
+    const employee = employees.find(emp => emp.id === employeeId)
+    if (!employee) return
+
+    // Update employee's branch
+    storage.updateEmployee(employeeId, { branchCode: targetBranch })
+    onUpdate()
+  }
+
+  const handleEmployeeDeleteClick = (employeeId: string) => {
+    const employee = employees.find(emp => emp.id === employeeId)
+    if (!employee) return
+
+    // Open confirmation dialog
+    setDeleteDialog({
+      isOpen: true,
+      employeeId,
+      employeeName: employee.name
+    })
+  }
+
+  const handleDeleteFromScheduleOnly = (employeeId: string) => {
+    if (!schedule) return
+
+    // Remove all shifts assigned to this employee in THIS schedule only
+    const updatedSchedule = { ...schedule }
+    updatedSchedule.days.forEach(day => {
+      day.shifts.forEach(shift => {
+        if (shift.employeeId === employeeId) {
+          shift.employeeId = undefined
+          shift.isAssigned = false
+          shift.status = 'empty'
+          shift.coverageInfo = undefined
+        }
+      })
+    })
+
+    storage.updateSchedule(schedule.id, updatedSchedule)
+
+    // Hide employee from grid
+    setHiddenEmployees(prev => new Set(prev).add(employeeId))
+
+    onUpdate()
+  }
+
+  const handleDeleteEmployeePermanently = (employeeId: string) => {
+    if (!schedule) return
+
+    // Remove employee from storage (permanently)
+    storage.deleteEmployee(employeeId)
+
+    // Remove all shifts assigned to this employee in THIS schedule
+    const updatedSchedule = { ...schedule }
+    updatedSchedule.days.forEach(day => {
+      day.shifts.forEach(shift => {
+        if (shift.employeeId === employeeId) {
+          shift.employeeId = undefined
+          shift.isAssigned = false
+          shift.status = 'empty'
+          shift.coverageInfo = undefined
+        }
+      })
+    })
+
+    storage.updateSchedule(schedule.id, updatedSchedule)
+    onUpdate()
+  }
+
   const handleEmployeeShiftChange = (employeeId: string, newShiftType: ShiftType) => {
     if (!schedule) return
     // Find the employee and update their shift
-    const employee = employees.find(emp => emp.id === employeeId)
+    const employee = employeesWithShifts.find(emp => emp.id === employeeId)
     if (!employee) return
 
     const oldShiftType = employee.assignedShift
@@ -1297,7 +1663,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
       // Get positions already used in the NEW shift by other employees
       const usedPositionsInNewShift = new Set<PositionType>()
-      employees.forEach(emp => {
+      employeesWithShifts.forEach(emp => {
         if (emp.assignedShift === newShiftType && emp.id !== employeeId) {
           const empShift = getShiftForDay(0, newShiftType, emp.id)
           if (empShift?.position && empShift.position !== 'EXT') {
@@ -1362,10 +1728,6 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       storage.updateSchedule(schedule.id, updatedSchedule)
     }
 
-    // Update the employee's assigned shift
-    const updatedEmployee = { ...employee, assignedShift: newShiftType }
-    storage.updateEmployee(employeeId, updatedEmployee)
-
     // Trigger update in parent to refresh employee list
     onUpdate()
   }
@@ -1373,7 +1735,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   const handlePositionChange = (employeeId: string, position: PositionType) => {
     if (!schedule) return
     // Find the employee to get their shift type
-    const employee = employees.find(emp => emp.id === employeeId)
+    const employee = employeesWithShifts.find(emp => emp.id === employeeId)
     if (!employee || !employee.assignedShift) return
 
     // Validate: Turno 3 (night) cannot have C1
@@ -1392,7 +1754,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     // If trying to assign a non-EXT position, check if it's already in use in the SAME SHIFT
     if (position !== 'EXT') {
       // Find employee who currently has this position in the SAME shift
-      const employeeWithPosition = employees.find(emp => {
+      const employeeWithPosition = employeesWithShifts.find(emp => {
         if (emp.id === employeeId || emp.assignedShift !== employee.assignedShift) return false
 
         const empShift = getShiftForDay(0, employee.assignedShift as ShiftType, emp.id)
@@ -1531,13 +1893,13 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   }
 
   const handleImportFromCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) {
-      console.log('[handleImportFromCSV] ❌ No file selected')
+    const files = event.target.files
+    if (!files || files.length === 0) {
+      console.log('[handleImportFromCSV] ❌ No files selected')
       return
     }
 
-    console.log('[handleImportFromCSV] 📂 File selected:', file.name, 'Size:', file.size)
+    console.log('[handleImportFromCSV] 📂 Files selected:', files.length)
 
     try {
       // Use ALL employees from storage, not just filtered ones
@@ -1549,52 +1911,129 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
         return
       }
 
-      const updatedSchedule = await importFromCSV(file, schedule, allEmployees)
+      const isMultipleFiles = files.length > 1
+      const silentMode = isMultipleFiles // Silent mode when importing multiple files
+      let successCount = 0
+      let failCount = 0
+      const errors: string[] = []
+      const importedScheduleNames: string[] = []
 
-      console.log('[handleImportFromCSV] ✓ Schedule imported:', {
-        id: updatedSchedule.id,
-        name: updatedSchedule.name,
-        days: updatedSchedule.days.length,
-        totalShifts: updatedSchedule.days.reduce((sum, day) => sum + day.shifts.length, 0)
-      })
+      // Process each file
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        console.log(`[handleImportFromCSV] 📄 Processing file ${i + 1}/${files.length}:`, file.name)
 
-      // Validate schedule has data
-      const totalShifts = updatedSchedule.days.reduce((sum, day) => sum + day.shifts.length, 0)
-      if (totalShifts === 0) {
-        throw new Error('El horario importado no contiene turnos válidos')
-      }
+        try {
+          // Detect if CSV has multi-schedule format (NombreHorario column)
+          const fileContent = await file.text()
+          const hasScheduleNameColumn = fileContent.toLowerCase().includes('nombrehorario')
 
-      if (schedule) {
-        // Update existing schedule
-        console.log('[handleImportFromCSV] 💾 Updating existing schedule:', schedule.id)
-        storage.updateSchedule(schedule.id, updatedSchedule)
+          if (hasScheduleNameColumn) {
+            // Multi-schedule CSV detected - import all schedules
+            console.log('[handleImportFromCSV] 📋 Multi-schedule CSV detected')
+            const importedSchedules = await importAllSchedulesFromCSV(file, allEmployees, silentMode)
 
-        // Verify it was saved
-        const savedSchedule = storage.getSchedules().find(s => s.id === schedule.id)
-        console.log('[handleImportFromCSV] ✓ Schedule updated in storage:', savedSchedule ? 'YES' : 'NO')
+            console.log('[handleImportFromCSV] ✓ Multiple schedules imported:', importedSchedules.length)
 
-        alert(`✅ Horario actualizado desde CSV\n${totalShifts} turnos procesados`)
-      } else {
-        // Create new schedule from CSV
-        // Tag with current organizational context
-        updatedSchedule.branchCode = branchCode || '001'
-        updatedSchedule.division = division || 'super'
+            // Save all imported schedules
+            importedSchedules.forEach(importedSchedule => {
+              // Tag with current organizational context
+              importedSchedule.branchCode = branchCode || '001'
+              importedSchedule.division = division || 'super'
 
-        console.log('[handleImportFromCSV] 💾 Creating new schedule')
-        storage.addSchedule(updatedSchedule)
+              console.log('[handleImportFromCSV] 💾 Creating schedule:', importedSchedule.name)
+              storage.addSchedule(importedSchedule)
 
-        // Verify it was saved
-        const allSchedules = storage.getSchedules()
-        const savedSchedule = allSchedules.find(s => s.id === updatedSchedule.id)
-        console.log('[handleImportFromCSV] ✓ Schedule saved in storage:', savedSchedule ? 'YES' : 'NO')
-        console.log('[handleImportFromCSV] 📊 Total schedules in storage:', allSchedules.length)
+              const savedSchedule = storage.getSchedules().find(s => s.id === importedSchedule.id)
+              console.log('[handleImportFromCSV] ✓ Schedule saved:', savedSchedule ? 'YES' : 'NO')
 
-        alert(`✅ Horario creado desde CSV: ${updatedSchedule.name}\n${totalShifts} turnos procesados`)
+              importedScheduleNames.push(importedSchedule.name)
+            })
+
+            successCount += importedSchedules.length
+          } else {
+            // Single-schedule CSV - use regular import
+            console.log('[handleImportFromCSV] 📄 Single-schedule CSV detected')
+            const targetSchedule = isMultipleFiles ? null : schedule
+            const updatedSchedule = await importFromCSV(file, targetSchedule, allEmployees, silentMode)
+
+            console.log('[handleImportFromCSV] ✓ Schedule imported:', {
+              id: updatedSchedule.id,
+              name: updatedSchedule.name,
+              days: updatedSchedule.days.length,
+              totalShifts: updatedSchedule.days.reduce((sum, day) => sum + day.shifts.length, 0)
+            })
+
+            // Validate schedule has data
+            const totalShifts = updatedSchedule.days.reduce((sum, day) => sum + day.shifts.length, 0)
+            if (totalShifts === 0) {
+              throw new Error('El horario importado no contiene turnos válidos')
+            }
+
+            if (targetSchedule && !isMultipleFiles) {
+              // Update existing schedule (single file mode only)
+              console.log('[handleImportFromCSV] 💾 Updating existing schedule:', targetSchedule.id)
+              storage.updateSchedule(targetSchedule.id, updatedSchedule)
+
+              const savedSchedule = storage.getSchedules().find(s => s.id === targetSchedule.id)
+              console.log('[handleImportFromCSV] ✓ Schedule updated in storage:', savedSchedule ? 'YES' : 'NO')
+            } else {
+              // Create new schedule from CSV
+              // Tag with current organizational context
+              updatedSchedule.branchCode = branchCode || '001'
+              updatedSchedule.division = division || 'super'
+
+              console.log('[handleImportFromCSV] 💾 Creating new schedule:', updatedSchedule.name)
+              storage.addSchedule(updatedSchedule)
+
+              const allSchedules = storage.getSchedules()
+              const savedSchedule = allSchedules.find(s => s.id === updatedSchedule.id)
+              console.log('[handleImportFromCSV] ✓ Schedule saved in storage:', savedSchedule ? 'YES' : 'NO')
+            }
+
+            successCount++
+          }
+        } catch (fileError: any) {
+          console.error(`[handleImportFromCSV] ❌ Error processing ${file.name}:`, fileError)
+          failCount++
+          errors.push(`${file.name}: ${fileError.message || 'Error desconocido'}`)
+        }
       }
 
       console.log('[handleImportFromCSV] 🔄 Triggering update...')
       onUpdate()
-      console.log('[handleImportFromCSV] ✓ Import completed successfully')
+      console.log('[handleImportFromCSV] ✓ Import completed:', { successCount, failCount })
+
+      // Show summary
+      if (isMultipleFiles) {
+        if (successCount > 0 && failCount === 0) {
+          const message = importedScheduleNames.length > 0
+            ? `✅ ${successCount} ${successCount === 1 ? 'horario importado' : 'horarios importados'} correctamente:\n\n${importedScheduleNames.map((name, i) => `${i + 1}. ${name}`).join('\n')}`
+            : `✅ ${successCount} ${successCount === 1 ? 'horario importado' : 'horarios importados'} correctamente`
+          alert(message)
+        } else if (successCount > 0 && failCount > 0) {
+          alert(`✅ ${successCount} ${successCount === 1 ? 'horario importado' : 'horarios importados'}\n❌ ${failCount} ${failCount === 1 ? 'falló' : 'fallaron'}\n\nErrores:\n${errors.join('\n')}`)
+        } else {
+          alert(`❌ Todos los archivos fallaron\n\nErrores:\n${errors.join('\n')}`)
+        }
+      } else {
+        // Single file mode
+        if (importedScheduleNames.length > 1) {
+          // Multi-schedule CSV in single file mode
+          alert(`✅ ${importedScheduleNames.length} horarios importados:\n\n${importedScheduleNames.map((name, i) => `${i + 1}. ${name}`).join('\n')}`)
+        } else if (importedScheduleNames.length === 1) {
+          // Single schedule from multi-schedule CSV
+          alert(`✅ Horario importado:\n${importedScheduleNames[0]}`)
+        } else {
+          // Regular single schedule CSV
+          const totalShifts = storage.getSchedules().find(s => s.branchCode === branchCode)?.days.reduce((sum, day) => sum + day.shifts.length, 0) || 0
+          if (schedule) {
+            alert(`✅ Horario actualizado desde CSV\n${totalShifts} turnos procesados`)
+          } else {
+            alert(`✅ Horario creado desde CSV`)
+          }
+        }
+      }
     } catch (error: any) {
       console.error('[handleImportFromCSV] ❌ Error:', error)
       alert(`❌ Error al importar CSV\n\n${error.message || 'Error desconocido'}\n\nRevisa la consola para más detalles.`)
@@ -1607,11 +2046,11 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   }
 
   const getEmployeesByShift = (shiftType: ShiftType) => {
-    return employees.filter(emp => emp.assignedShift === shiftType)
+    return employeesWithShifts.filter(emp => emp.assignedShift === shiftType && !hiddenEmployees.has(emp.id))
   }
 
   const getEmployeesByShiftSorted = (shiftType: ShiftType) => {
-    const filteredEmployees = employees.filter(emp => emp.assignedShift === shiftType)
+    const filteredEmployees = employeesWithShifts.filter(emp => emp.assignedShift === shiftType && !hiddenEmployees.has(emp.id))
 
     // Define position priority order
     const positionOrder: Record<PositionType, number> = {
@@ -1653,9 +2092,9 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     if (!schedule) return []
     const coveringEmployees: Array<{ employee: Employee; coveringDays: number[] }> = []
 
-    employees.forEach(employee => {
-      // Skip if employee is assigned to this shift (they're not covering, they belong here)
-      if (employee.assignedShift === targetShiftType) return
+    employeesWithShifts.forEach(employee => {
+      // Skip if employee is hidden or assigned to this shift (they're not covering, they belong here)
+      if (hiddenEmployees.has(employee.id) || employee.assignedShift === targetShiftType) return
 
       const coveringDays: number[] = []
 
@@ -1711,6 +2150,62 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     let targetBranchCode: BranchCode
     let targetDivision: Division
 
+    // Helper function to get next biweekly period
+    const getNextPeriod = (currentDate: Date): { startDate: Date; scheduleName: string } => {
+      const year = currentDate.getFullYear()
+      const month = currentDate.getMonth()
+      const day = currentDate.getDate()
+
+      if (day === 1) {
+        // Start of first half
+        return {
+          startDate: new Date(year, month, 1),
+          scheduleName: `Horario ${new Date(year, month, 1).toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 1ra Quincena`
+        }
+      } else if (day === 16) {
+        // Start of second half
+        return {
+          startDate: new Date(year, month, 16),
+          scheduleName: `Horario ${new Date(year, month, 16).toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 2da Quincena`
+        }
+      } else if (day <= 15) {
+        // Between 2-15: advance to second half of same month
+        return {
+          startDate: new Date(year, month, 16),
+          scheduleName: `Horario ${new Date(year, month, 16).toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 2da Quincena`
+        }
+      } else {
+        // Between 17-31: advance to first half of next month
+        const nextMonth = new Date(year, month + 1, 1)
+        return {
+          startDate: nextMonth,
+          scheduleName: `Horario ${nextMonth.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 1ra Quincena`
+        }
+      }
+    }
+
+    // Helper function to advance to next period
+    const advancePeriod = (currentStart: Date): { startDate: Date; scheduleName: string } => {
+      const day = currentStart.getDate()
+      const year = currentStart.getFullYear()
+      const month = currentStart.getMonth()
+
+      if (day === 1) {
+        // From first half -> second half same month
+        return {
+          startDate: new Date(year, month, 16),
+          scheduleName: `Horario ${new Date(year, month, 16).toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 2da Quincena`
+        }
+      } else {
+        // From second half -> first half next month
+        const nextMonth = new Date(year, month + 1, 1)
+        return {
+          startDate: nextMonth,
+          scheduleName: `Horario ${nextMonth.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 1ra Quincena`
+        }
+      }
+    }
+
     if (!schedule) {
       // No schedule exists - create one for current period
       const today = new Date()
@@ -1718,56 +2213,59 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       const currentDay = today.getDate()
 
       if (currentDay <= 15) {
-        // Create first half schedule (1st to 15th)
         startDate = new Date(today.getFullYear(), today.getMonth(), 1)
         scheduleName = `Horario ${today.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 1ra Quincena`
       } else {
-        // Create second half schedule (16th to end of month)
         startDate = new Date(today.getFullYear(), today.getMonth(), 16)
         scheduleName = `Horario ${today.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 2da Quincena`
       }
 
-      // Use current context from props
       targetBranchCode = branchCode || '001'
       targetDivision = division || 'super'
     } else {
-      // Schedule exists - create next schedule
+      // Schedule exists - find next available period
       const scheduleEnd = new Date(schedule.endDate)
       scheduleEnd.setHours(0, 0, 0, 0)
 
-      // Calculate next schedule start date (day after current schedule ends)
-      startDate = new Date(scheduleEnd)
-      startDate.setDate(startDate.getDate() + 1)
+      // Calculate next day after schedule ends
+      const nextDate = new Date(scheduleEnd)
+      nextDate.setDate(nextDate.getDate() + 1)
 
-      const nextDay = startDate.getDate()
+      // Get the logical next period
+      const nextPeriod = getNextPeriod(nextDate)
+      startDate = nextPeriod.startDate
+      scheduleName = nextPeriod.scheduleName
 
-      if (nextDay === 1) {
-        // Next schedule starts on 1st, so it's first half
-        scheduleName = `Horario ${startDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 1ra Quincena`
-      } else if (nextDay === 16) {
-        // Next schedule starts on 16th, so it's second half
-        scheduleName = `Horario ${startDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 2da Quincena`
-      } else {
-        // Shouldn't happen, but handle it
-        alert('Error: No se puede crear el siguiente horario desde esta fecha.')
-        return
-      }
-
-      // Preserve organizational context from current schedule
       targetBranchCode = schedule.branchCode || branchCode || '001'
       targetDivision = schedule.division || division || 'super'
     }
 
-    // Check if this schedule already exists
+    // Find next available period (skip if already exists)
     const existingSchedules = storage.getSchedules()
-    const exists = existingSchedules.some(s =>
-      s.startDate === startDate.toISOString().split('T')[0] &&
-      s.branchCode === targetBranchCode &&
-      s.division === targetDivision
-    )
+    let attempts = 0
+    const maxAttempts = 24 // 12 months = 24 biweekly periods
 
-    if (exists) {
-      alert('Este horario ya existe en el historial.')
+    while (attempts < maxAttempts) {
+      const exists = existingSchedules.some(s =>
+        s.startDate === startDate.toISOString().split('T')[0] &&
+        s.branchCode === targetBranchCode &&
+        s.division === targetDivision
+      )
+
+      if (!exists) {
+        // Found available period, create schedule
+        break
+      }
+
+      // Period already exists, advance to next period
+      const nextPeriod = advancePeriod(startDate)
+      startDate = nextPeriod.startDate
+      scheduleName = nextPeriod.scheduleName
+      attempts++
+    }
+
+    if (attempts >= maxAttempts) {
+      alert('No se pudo encontrar un período disponible. Por favor, revisa tus horarios existentes.')
       return
     }
 
@@ -1778,9 +2276,157 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       templates
     )
 
-    // Tag schedule with organizational context
     newSchedule.branchCode = targetBranchCode
     newSchedule.division = targetDivision
+
+    // Apply rotation from previous schedule
+    const previousSchedule = existingSchedules
+      .filter(s => s.branchCode === targetBranchCode && s.division === targetDivision)
+      .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime())[0]
+
+    if (previousSchedule) {
+      // Helper function to rotate shift and position
+      const rotateShiftAndPosition = (currentShift: ShiftType, currentPosition: PositionType): { shift: ShiftType; position: PositionType } => {
+        // EXT employees rotate shift but keep EXT position
+        if (currentPosition === 'EXT') {
+          const shiftRotation: Record<ShiftType, ShiftType> = {
+            'morning': 'afternoon',
+            'afternoon': 'night',
+            'night': 'morning',
+            'unassigned': 'unassigned'
+          }
+          return { shift: shiftRotation[currentShift], position: 'EXT' }
+        }
+
+        // Regular rotation with night shift special handling (only C2 and C3)
+        const rotation: Record<string, { shift: ShiftType; position: PositionType }> = {
+          // Morning rotations
+          'morning-C1': { shift: 'afternoon', position: 'C2' },
+          'morning-C2': { shift: 'afternoon', position: 'C3' },
+          'morning-C3': { shift: 'afternoon', position: 'C1' },
+          // Afternoon rotations (to night: no C1, use C2/C3)
+          'afternoon-C1': { shift: 'night', position: 'C2' },
+          'afternoon-C2': { shift: 'night', position: 'C3' },
+          'afternoon-C3': { shift: 'night', position: 'C2' },
+          // Night rotations (from night: C2↔C3, then to morning)
+          'night-C2': { shift: 'morning', position: 'C3' },
+          'night-C3': { shift: 'morning', position: 'C1' }
+        }
+
+        const key = `${currentShift}-${currentPosition}`
+        return rotation[key] || { shift: currentShift, position: currentPosition }
+      }
+
+      // Helper function to advance rest day by one day of week
+      const advanceRestDay = (dayName: string): string => {
+        const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+        const currentIndex = days.indexOf(dayName)
+        if (currentIndex === -1) return dayName
+        const nextIndex = (currentIndex + 1) % days.length
+        return days[nextIndex]
+      }
+
+      // Helper to get shift type from time
+      const getShiftTypeFromTime = (startTime: string): ShiftType => {
+        if (startTime === '07:00') return 'morning'
+        if (startTime === '15:00') return 'afternoon'
+        if (startTime === '23:00') return 'night'
+        return 'unassigned'
+      }
+
+      // Clear empty shifts created by generateWeeklySchedule
+      newSchedule.days.forEach(day => {
+        day.shifts = []
+      })
+
+      // Step 1: Collect rest days per employee from previous schedule
+      const employeeRestDays = new Map<string, string[]>()
+      previousSchedule.days.forEach(day => {
+        day.shifts.forEach(shift => {
+          if (shift.employeeId && shift.status === 'rest') {
+            if (!employeeRestDays.has(shift.employeeId)) {
+              employeeRestDays.set(shift.employeeId, [])
+            }
+            if (!employeeRestDays.get(shift.employeeId)!.includes(day.dayName)) {
+              employeeRestDays.get(shift.employeeId)!.push(day.dayName)
+            }
+          }
+        })
+      })
+
+      // Step 2: Calculate advanced rest days (rotate by 1 day)
+      const newRestDays = new Map<string, string[]>()
+      employeeRestDays.forEach((restDays, employeeId) => {
+        const advancedDays = restDays.map(day => advanceRestDay(day))
+        newRestDays.set(employeeId, advancedDays)
+      })
+
+      // Step 3: Apply rotation to each day
+      newSchedule.days.forEach(newDay => {
+        // Find corresponding day in previous schedule (same dayName)
+        const previousDay = previousSchedule.days.find(d => d.dayName === newDay.dayName)
+        if (!previousDay) return
+
+        // For each shift in previous day, apply rotation and create new shift
+        previousDay.shifts.forEach(prevShift => {
+          if (!prevShift.employeeId || !prevShift.isAssigned) return
+
+          const currentShiftType = getShiftTypeFromTime(prevShift.startTime)
+          const currentPosition = prevShift.position || 'EXT'
+
+          // Check if this employee has rest on this day in new schedule
+          const employeeNewRestDays = newRestDays.get(prevShift.employeeId) || []
+          const isRestDay = employeeNewRestDays.includes(newDay.dayName)
+
+          // Calculate rotated shift and position
+          const { shift: newShiftType, position: newPosition } = rotateShiftAndPosition(currentShiftType, currentPosition)
+
+          // Define shift times
+          const shiftTimes: Record<ShiftType, { start: string; end: string }> = {
+            'morning': { start: '07:00', end: '15:00' },
+            'afternoon': { start: '15:00', end: '23:00' },
+            'night': { start: '23:00', end: '07:00' },
+            'unassigned': { start: '', end: '' }
+          }
+
+          const targetTime = shiftTimes[newShiftType]
+
+          // Create new shift object for this employee
+          const newShift = {
+            id: generateId(),
+            startTime: targetTime.start,
+            endTime: targetTime.end,
+            date: newDay.date,
+            employeeId: prevShift.employeeId,
+            isAssigned: true,
+            position: newPosition,
+            status: isRestDay ? ('rest' as ShiftStatus) : (prevShift.status === 'rest' ? 'assigned' as ShiftStatus : prevShift.status || 'assigned' as ShiftStatus),
+            ...(prevShift.coverageInfo && !isRestDay && { coverageInfo: { ...prevShift.coverageInfo } })
+          }
+
+          // Add to day's shifts
+          newDay.shifts.push(newShift)
+        })
+      })
+
+      // Step 4: Update employee rotation counters
+      const allEmployees = storage.getEmployees()
+      const updatedEmployees = allEmployees.map(emp => {
+        // Check if this employee is in the new schedule
+        const isInSchedule = newSchedule.days.some(day =>
+          day.shifts.some(shift => shift.employeeId === emp.id)
+        )
+
+        if (isInSchedule && emp.branchCode === targetBranchCode && emp.division === targetDivision) {
+          return {
+            ...emp,
+            shiftRotationCount: (emp.shiftRotationCount || 0) + 1
+          }
+        }
+        return emp
+      })
+      storage.saveEmployees(updatedEmployees)
+    }
 
     storage.addSchedule(newSchedule)
     onUpdate()
@@ -1817,6 +2463,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
               ref={csvFileInputRef}
               type="file"
               accept=".csv"
+              multiple
               onChange={handleImportFromCSV}
               className="hidden"
             />
@@ -1838,6 +2485,30 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
           onClose={() => setCoverageMenu(null)}
           currentBranchCode={branchCode}
           currentShiftType={coverageMenu.shiftType}
+        />
+      )}
+
+      {/* Employee Context Menu */}
+      {employeeContextMenu && (
+        <EmployeeContextMenu
+          isOpen={employeeContextMenu.isOpen}
+          position={employeeContextMenu.position}
+          employeeId={employeeContextMenu.employeeId}
+          currentBranchCode={branchCode}
+          onTransfer={handleEmployeeTransfer}
+          onDelete={handleEmployeeDeleteClick}
+          onClose={() => setEmployeeContextMenu(null)}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {deleteDialog && (
+        <ConfirmDeleteDialog
+          isOpen={deleteDialog.isOpen}
+          employeeName={deleteDialog.employeeName}
+          onDeleteFromSchedule={() => handleDeleteFromScheduleOnly(deleteDialog.employeeId)}
+          onDeleteEmployee={() => handleDeleteEmployeePermanently(deleteDialog.employeeId)}
+          onClose={() => setDeleteDialog(null)}
         />
       )}
 
@@ -1931,6 +2602,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
                         ref={csvFileInputRef}
                         type="file"
                         accept=".csv"
+                        multiple
                         onChange={handleImportFromCSV}
                         className="hidden"
                       />
@@ -1996,6 +2668,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
                     employees={employees}
                     onCellClick={handleCellClick}
                     onContextMenu={handleContextMenu}
+                    onEmployeeContextMenu={handleEmployeeContextMenu}
                     onPositionChange={handlePositionChange}
                     getShiftForDay={getShiftForDay}
                     onVacationDrop={handleVacationDrop}
@@ -2016,6 +2689,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
                     employees={employees}
                     onCellClick={handleCellClick}
                     onContextMenu={handleContextMenu}
+                    onEmployeeContextMenu={handleEmployeeContextMenu}
                     onPositionChange={handlePositionChange}
                     getShiftForDay={getShiftForDay}
                     onVacationDrop={handleVacationDrop}
@@ -2059,6 +2733,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
                     employees={employees}
                     onCellClick={handleCellClick}
                     onContextMenu={handleContextMenu}
+                    onEmployeeContextMenu={handleEmployeeContextMenu}
                     onPositionChange={handlePositionChange}
                     getShiftForDay={getShiftForDay}
                     onVacationDrop={handleVacationDrop}
@@ -2079,6 +2754,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
                     employees={employees}
                     onCellClick={handleCellClick}
                     onContextMenu={handleContextMenu}
+                    onEmployeeContextMenu={handleEmployeeContextMenu}
                     onPositionChange={handlePositionChange}
                     getShiftForDay={getShiftForDay}
                     onVacationDrop={handleVacationDrop}
@@ -2095,68 +2771,72 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
             )}
           </ShiftRowContainer>
 
-          {/* Night Shift */}
-          <ShiftRowContainer
-            shiftType="night"
-            onDrop={handleEmployeeShiftChange}
-          >
-            <tr style={{ backgroundColor: '#FFEB9C' }}>
-              <td colSpan={schedule.days.length + 1} style={{ border: '1px solid #000', padding: '8px', fontWeight: 'bold', textAlign: 'center' }}>
-                {SHIFT_LABELS.night.label}
-              </td>
-            </tr>
-            {getEmployeesByShiftSorted('night').length === 0 ? (
-              <tr>
-                <td colSpan={schedule.days.length + 1} style={{ border: '1px solid #000', padding: '12px', textAlign: 'center', color: '#999' }}>
-                  No hay empleados asignados a este turno
+          {/* Night Shift - Only for branches 001 and 003, not 002 */}
+          {branchCode !== '002' && (
+            <ShiftRowContainer
+              shiftType="night"
+              onDrop={handleEmployeeShiftChange}
+            >
+              <tr style={{ backgroundColor: '#FFEB9C' }}>
+                <td colSpan={schedule.days.length + 1} style={{ border: '1px solid #000', padding: '8px', fontWeight: 'bold', textAlign: 'center' }}>
+                  {SHIFT_LABELS.night.label}
                 </td>
               </tr>
-            ) : (
-              <>
-                {getEmployeesByShiftSorted('night').map(employee => (
-                  <DraggableEmployeeRow
-                    key={employee.id}
-                    employee={employee}
-                    shiftType="night"
-                    schedule={schedule}
-                    employees={employees}
-                    onCellClick={handleCellClick}
-                    onContextMenu={handleContextMenu}
-                    onPositionChange={handlePositionChange}
-                    getShiftForDay={getShiftForDay}
-                    onVacationDrop={handleVacationDrop}
-                    onCellMouseDown={handleCellMouseDown}
-                    onCellMouseEnter={handleCellMouseEnter}
-                    selectedCell={selectedCell}
-                    selectedCells={selectedCells}
-                    branchCode={branchCode}
-                  />
-                ))}
-                {/* Covering employees from other shifts */}
-                {getEmployeesCoveringThisShift('night').map(({ employee, coveringDays }) => (
-                  <DraggableEmployeeRow
-                    key={`covering-${employee.id}`}
-                    employee={employee}
-                    shiftType="night"
-                    schedule={schedule}
-                    employees={employees}
-                    onCellClick={handleCellClick}
-                    onContextMenu={handleContextMenu}
-                    onPositionChange={handlePositionChange}
-                    getShiftForDay={getShiftForDay}
-                    onVacationDrop={handleVacationDrop}
-                    onCellMouseDown={handleCellMouseDown}
-                    onCellMouseEnter={handleCellMouseEnter}
-                    selectedCell={selectedCell}
-                    selectedCells={selectedCells}
-                    isCoveringRow={true}
-                    coveringDays={coveringDays}
-                    branchCode={branchCode}
-                  />
-                ))}
-              </>
-            )}
-          </ShiftRowContainer>
+              {getEmployeesByShiftSorted('night').length === 0 ? (
+                <tr>
+                  <td colSpan={schedule.days.length + 1} style={{ border: '1px solid #000', padding: '12px', textAlign: 'center', color: '#999' }}>
+                    No hay empleados asignados a este turno
+                  </td>
+                </tr>
+              ) : (
+                <>
+                  {getEmployeesByShiftSorted('night').map(employee => (
+                    <DraggableEmployeeRow
+                      key={employee.id}
+                      employee={employee}
+                      shiftType="night"
+                      schedule={schedule}
+                      employees={employees}
+                      onCellClick={handleCellClick}
+                      onContextMenu={handleContextMenu}
+                      onEmployeeContextMenu={handleEmployeeContextMenu}
+                      onPositionChange={handlePositionChange}
+                      getShiftForDay={getShiftForDay}
+                      onVacationDrop={handleVacationDrop}
+                      onCellMouseDown={handleCellMouseDown}
+                      onCellMouseEnter={handleCellMouseEnter}
+                      selectedCell={selectedCell}
+                      selectedCells={selectedCells}
+                      branchCode={branchCode}
+                    />
+                  ))}
+                  {/* Covering employees from other shifts */}
+                  {getEmployeesCoveringThisShift('night').map(({ employee, coveringDays }) => (
+                    <DraggableEmployeeRow
+                      key={`covering-${employee.id}`}
+                      employee={employee}
+                      shiftType="night"
+                      schedule={schedule}
+                      employees={employees}
+                      onCellClick={handleCellClick}
+                      onContextMenu={handleContextMenu}
+                      onEmployeeContextMenu={handleEmployeeContextMenu}
+                      onPositionChange={handlePositionChange}
+                      getShiftForDay={getShiftForDay}
+                      onVacationDrop={handleVacationDrop}
+                      onCellMouseDown={handleCellMouseDown}
+                      onCellMouseEnter={handleCellMouseEnter}
+                      selectedCell={selectedCell}
+                      selectedCells={selectedCells}
+                      isCoveringRow={true}
+                      coveringDays={coveringDays}
+                      branchCode={branchCode}
+                    />
+                  ))}
+                </>
+              )}
+            </ShiftRowContainer>
+          )}
         </table>
 
         {/* Legend + Hotkeys (merged at bottom) */}

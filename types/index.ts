@@ -15,6 +15,8 @@ export interface Employee {
   // Organizational context (optional for backward compatibility)
   branchCode?: BranchCode
   division?: Division
+  // Shift rotation counter (tracks how many schedules in current shift)
+  shiftRotationCount?: number
 }
 
 export type ShiftStatus = 'assigned' | 'rest' | 'vacation' | 'sick' | 'absent' | 'covering' | 'empty'

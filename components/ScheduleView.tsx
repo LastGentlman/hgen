@@ -68,10 +68,14 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
     const shift = updatedSchedule.days[dayIndex].shifts[shiftIndex]
 
     shift.status = status
-    shift.isAssigned = status === 'assigned'
+
+    // A shift is assigned if it has an employee (regardless of status)
+    // Rest, vacation, sick, etc. are still "assigned" to someone
+    shift.isAssigned = !!shift.employeeId
 
     if (status === 'empty') {
       shift.employeeId = undefined
+      shift.isAssigned = false
     }
 
     storage.updateSchedule(schedule.id, updatedSchedule)
