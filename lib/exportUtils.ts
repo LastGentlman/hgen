@@ -5,6 +5,7 @@
 
 import type { Schedule, Employee, Shift, PositionType } from '@/types'
 import type { ParsedCSVData } from '@/lib/csvParser'
+import { showWarningHtml } from '@/lib/sweetalert'
 
 /**
  * Map shift times to shiftType
@@ -437,16 +438,22 @@ export function importAllSchedulesFromCSV(
           console.log(`  - "${name}": ${rows.length} shifts across ${dates.length} days (${dates[0]} to ${dates[dates.length - 1]})`)
         })
 
+        console.log('[importAllSchedulesFromCSV] 🔍 Starting quincenal analysis...')
+
         // Auto-detect and split schedules by quincenal periods if needed
         // This handles cases where multiple quincenal schedules share the same base name
         const improvedScheduleGroups = new Map<string, typeof parsedData.rows>()
 
         scheduleGroups.forEach((rows, originalName) => {
+          console.log(`[importAllSchedulesFromCSV] 🔍 Analyzing "${originalName}"...`)
+
           const dates = Array.from(new Set(rows.map(r => r.date))).sort()
+          console.log(`  📅 Unique dates: ${dates.length} (${dates[0]} to ${dates[dates.length - 1]})`)
 
           // Check if the name already includes quincenal information
           if (originalName.includes('Quincena')) {
             // Already has quincenal info, keep as is
+            console.log(`  ℹ️ Already has quincenal info, keeping as is`)
             improvedScheduleGroups.set(originalName, rows)
             return
           }
@@ -459,10 +466,17 @@ export function importAllSchedulesFromCSV(
 
           const minDay = Math.min(...days)
           const maxDay = Math.max(...days)
+          console.log(`  📊 Day range: ${minDay} to ${maxDay}`)
+
+          // Count days in each half
+          const firstHalfDays = days.filter(d => d <= 15).length
+          const secondHalfDays = days.filter(d => d >= 16).length
+          console.log(`  📊 Distribution: ${firstHalfDays} days in 1st half (1-15), ${secondHalfDays} days in 2nd half (16-31)`)
 
           // Check if dates span across both halves of the month (full month or mixed)
           const hasFirstHalf = minDay <= 15
           const hasSecondHalf = maxDay >= 16
+          console.log(`  🔍 hasFirstHalf: ${hasFirstHalf}, hasSecondHalf: ${hasSecondHalf}`)
 
           if (hasFirstHalf && hasSecondHalf) {
             // Dates span both halves - split into two schedules
@@ -479,6 +493,8 @@ export function importAllSchedulesFromCSV(
               return date.getDate() >= 16
             })
 
+            console.log(`  📊 Split results: ${firstHalfRows.length} rows in 1st half, ${secondHalfRows.length} rows in 2nd half`)
+
             if (firstHalfRows.length > 0) {
               const firstName = originalName + ' - 1ra Quincena'
               console.log(`  ✓ Created "${firstName}" with ${firstHalfRows.length} shifts`)
@@ -492,6 +508,7 @@ export function importAllSchedulesFromCSV(
             }
           } else {
             // Dates only in one half - add appropriate suffix
+            console.log(`  ℹ️ Dates only in one half, analyzing for suffix...`)
             const suffix = analyzeScheduleDateRange(dates)
 
             if (suffix) {
@@ -500,6 +517,7 @@ export function importAllSchedulesFromCSV(
               improvedScheduleGroups.set(improvedName, rows)
             } else {
               // Keep original name
+              console.log(`  ℹ️ No suffix needed, keeping original name`)
               improvedScheduleGroups.set(originalName, rows)
             }
           }
@@ -654,7 +672,8 @@ export function importAllSchedulesFromCSV(
           const notFoundList = Array.from(employeesNotFound).join(', ')
           console.warn('[importAllSchedulesFromCSV] ⚠️ Empleados no encontrados:', notFoundList)
           if (!silentMode) {
-            alert(`⚠️ Advertencia: Los siguientes empleados del CSV no se encontraron en tu lista de empleados:\n\n${notFoundList}\n\nSus turnos se importaron pero sin empleado asignado.`)
+            const employeesList = Array.from(employeesNotFound).map(name => `<li>${name}</li>`).join('')
+            showWarningHtml(`Los siguientes empleados del CSV no se encontraron en tu lista:<br><br><ul style="text-align: left; margin: 10px 0;">${employeesList}</ul><br>Sus turnos se importaron pero sin empleado asignado.`, '⚠️ Empleados no encontrados')
           }
         }
 
@@ -706,7 +725,13 @@ export function importAllSchedulesFromCSV(
 
         console.log('[importAllSchedulesFromCSV] ✓ Import complete:', {
           schedules: createdSchedules.length,
-          totalShifts: createdSchedules.reduce((sum, s) => sum + s.days.reduce((d, day) => d + day.shifts.length, 0), 0)
+          totalShifts: createdSchedules.reduce((sum, s) => sum + s.days.reduce((d, day) => d + day.shifts.length, 0), 0),
+          scheduleNames: createdSchedules.map(s => s.name)
+        })
+
+        console.log('[importAllSchedulesFromCSV] 📋 Final schedule list:')
+        createdSchedules.forEach((s, i) => {
+          console.log(`  ${i + 1}. "${s.name}" (${s.days.length} days, ${s.days.reduce((sum, day) => sum + day.shifts.length, 0)} shifts)`)
         })
 
         resolve(createdSchedules)
@@ -942,7 +967,8 @@ export function importFromCSV(
           const notFoundList = Array.from(employeesNotFound).join(', ')
           console.warn('[importFromCSV] ⚠️ Empleados no encontrados:', notFoundList)
           if (!silentMode) {
-            alert(`⚠️ Advertencia: Los siguientes empleados del CSV no se encontraron en tu lista de empleados:\n\n${notFoundList}\n\nSus turnos se importaron pero sin empleado asignado. Por favor, verifica los nombres de empleados.`)
+            const employeesList = Array.from(employeesNotFound).map(name => `<li>${name}</li>`).join('')
+            showWarningHtml(`Los siguientes empleados del CSV no se encontraron en tu lista:<br><br><ul style="text-align: left; margin: 10px 0;">${employeesList}</ul><br>Sus turnos se importaron pero sin empleado asignado. Por favor, verifica los nombres de empleados.`, '⚠️ Empleados no encontrados')
           }
         }
 

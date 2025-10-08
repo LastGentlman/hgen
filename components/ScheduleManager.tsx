@@ -5,6 +5,7 @@ import { Employee, Schedule, ShiftTemplate } from '@/types'
 import { storage } from '@/lib/storage'
 import { generateWeeklySchedule, getDefaultShiftTemplates } from '@/lib/utils'
 import { Plus, Calendar, Edit2, Trash2, Eye, ChevronDown, ChevronUp } from 'lucide-react'
+import { showDangerConfirm } from '@/lib/sweetalert'
 
 interface ScheduleManagerProps {
   employees: Employee[]
@@ -59,7 +60,13 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
   }
 
   const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this schedule?')) {
+    const confirmed = await showDangerConfirm(
+      'Esta acción no se puede deshacer.',
+      '¿Eliminar horario?',
+      'Sí, eliminar'
+    )
+
+    if (confirmed) {
       await storage.deleteSchedule(id)
       const schedules = await storage.getSchedules()
       setSchedules(schedules)

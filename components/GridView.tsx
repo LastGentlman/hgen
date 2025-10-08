@@ -8,6 +8,7 @@ import { exportToPDF, exportToCSV, importFromCSV, importAllSchedulesFromCSV } fr
 import { Download, Plus, Upload, Calendar, FileSpreadsheet, MoreVertical } from 'lucide-react'
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
+import { showError, showWarning, showSuccess, showWarningHtml } from '@/lib/sweetalert'
 
 interface GridViewProps {
   schedule: Schedule | null
@@ -1744,7 +1745,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
     // Validate: Turno 3 (night) cannot have C1
     if (employee.assignedShift === 'night' && position === 'C1') {
-      alert('El Turno 3 no puede tener el puesto C1.')
+      showWarning('El Turno 3 no puede tener el puesto C1.')
       onUpdate() // Force re-render to reset select
       return
     }
@@ -1882,7 +1883,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     try {
       await exportToPDF(tableRef.current, `${schedule.name}.pdf`)
     } catch (error) {
-      alert('Error generating PDF. Please try again.')
+      showError('Error al generar el PDF. Por favor intenta de nuevo.')
     }
   }
 
@@ -1892,7 +1893,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     try {
       exportToCSV(schedule, employees, `${schedule.name}.csv`)
     } catch (error) {
-      alert('Error al exportar CSV. Por favor intenta de nuevo.')
+      showError('Error al exportar CSV. Por favor intenta de nuevo.')
     }
   }
 
@@ -1911,7 +1912,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       console.log('[handleImportFromCSV] 👥 Available employees:', allEmployees.length)
 
       if (allEmployees.length === 0) {
-        alert('⚠️ No hay empleados registrados. Crea empleados primero antes de importar horarios.')
+        showWarning('No hay empleados registrados. Crea empleados primero antes de importar horarios.')
         return
       }
 
@@ -2011,36 +2012,41 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       // Show summary
       if (isMultipleFiles) {
         if (successCount > 0 && failCount === 0) {
-          const message = importedScheduleNames.length > 0
-            ? `✅ ${successCount} ${successCount === 1 ? 'horario importado' : 'horarios importados'} correctamente:\n\n${importedScheduleNames.map((name, i) => `${i + 1}. ${name}`).join('\n')}`
-            : `✅ ${successCount} ${successCount === 1 ? 'horario importado' : 'horarios importados'} correctamente`
-          alert(message)
+          if (importedScheduleNames.length > 0) {
+            const schedulesList = importedScheduleNames.map((name, i) => `<li>${name}</li>`).join('')
+            showSuccess(`Se importaron ${successCount} horario${successCount > 1 ? 's' : ''} correctamente:<br><br><ul style="text-align: left; margin: 10px 0;">${schedulesList}</ul>`, '¡Importación exitosa!')
+          } else {
+            showSuccess(`Se importaron ${successCount} horario${successCount > 1 ? 's' : ''} correctamente.`, '¡Importación exitosa!')
+          }
         } else if (successCount > 0 && failCount > 0) {
-          alert(`✅ ${successCount} ${successCount === 1 ? 'horario importado' : 'horarios importados'}\n❌ ${failCount} ${failCount === 1 ? 'falló' : 'fallaron'}\n\nErrores:\n${errors.join('\n')}`)
+          const errorsList = errors.map(err => `<li>${err}</li>`).join('')
+          showWarningHtml(`<p>✅ ${successCount} horario${successCount > 1 ? 's' : ''} importado${successCount > 1 ? 's' : ''}</p><p>❌ ${failCount} falló${failCount > 1 ? ' fallaron' : ''}</p><br><strong>Errores:</strong><ul style="text-align: left; margin: 10px 0;">${errorsList}</ul>`)
         } else {
-          alert(`❌ Todos los archivos fallaron\n\nErrores:\n${errors.join('\n')}`)
+          const errorsList = errors.map(err => `<li>${err}</li>`).join('')
+          showWarningHtml(`Todos los archivos fallaron:<br><br><ul style="text-align: left; margin: 10px 0;">${errorsList}</ul>`, '❌ Error de importación')
         }
       } else {
         // Single file mode
         if (importedScheduleNames.length > 1) {
           // Multi-schedule CSV in single file mode
-          alert(`✅ ${importedScheduleNames.length} horarios importados:\n\n${importedScheduleNames.map((name, i) => `${i + 1}. ${name}`).join('\n')}`)
+          const schedulesList = importedScheduleNames.map((name, i) => `<li>${name}</li>`).join('')
+          showSuccess(`Se importaron ${importedScheduleNames.length} horarios:<br><br><ul style="text-align: left; margin: 10px 0;">${schedulesList}</ul>`, '¡Importación exitosa!')
         } else if (importedScheduleNames.length === 1) {
           // Single schedule from multi-schedule CSV
-          alert(`✅ Horario importado:\n${importedScheduleNames[0]}`)
+          showSuccess(`Horario importado: ${importedScheduleNames[0]}`, '¡Importación exitosa!')
         } else {
           // Regular single schedule CSV
           const totalShifts = (await storage.getSchedules()).find(s => s.branchCode === branchCode)?.days.reduce((sum, day) => sum + day.shifts.length, 0) || 0
           if (schedule) {
-            alert(`✅ Horario actualizado desde CSV\n${totalShifts} turnos procesados`)
+            showSuccess(`Horario actualizado desde CSV. ${totalShifts} turnos procesados.`, '¡Importación exitosa!')
           } else {
-            alert(`✅ Horario creado desde CSV`)
+            showSuccess('Horario creado desde CSV.', '¡Importación exitosa!')
           }
         }
       }
     } catch (error: any) {
       console.error('[handleImportFromCSV] ❌ Error:', error)
-      alert(`❌ Error al importar CSV\n\n${error.message || 'Error desconocido'}\n\nRevisa la consola para más detalles.`)
+      showError(`Error al importar CSV: ${error.message || 'Error desconocido'}. Revisa la consola para más detalles.`)
     }
 
     // Reset input
@@ -2269,7 +2275,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     }
 
     if (attempts >= maxAttempts) {
-      alert('No se pudo encontrar un período disponible. Por favor, revisa tus horarios existentes.')
+      showWarning('No se pudo encontrar un período disponible. Por favor, revisa tus horarios existentes.')
       return
     }
 
@@ -2441,7 +2447,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
     await storage.addSchedule(newSchedule)
     onUpdate()
-    alert(`✅ Horario creado: ${scheduleName}`)
+    showSuccess(`Horario creado: ${scheduleName}`, '¡Horario creado!')
   }
 
   if (!schedule) {

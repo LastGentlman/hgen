@@ -5,6 +5,7 @@ import { Employee, BranchCode, Division } from '@/types'
 import { storage } from '@/lib/storage'
 import { generateId } from '@/lib/utils'
 import { Plus, Edit2, Trash2, Save, X, Users, Upload, ChevronDown, ChevronUp } from 'lucide-react'
+import { showDangerConfirm, showSuccess, showError } from '@/lib/sweetalert'
 
 interface EmployeeManagerProps {
   onUpdate: () => void
@@ -103,7 +104,13 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
   }
 
   const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this employee?')) {
+    const confirmed = await showDangerConfirm(
+      'Esta acción no se puede deshacer.',
+      '¿Eliminar empleado?',
+      'Sí, eliminar'
+    )
+
+    if (confirmed) {
       await storage.deleteEmployee(id)
       const employees = await storage.getEmployees()
       setEmployees(employees)
@@ -129,7 +136,7 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
         } else if (data.employees && Array.isArray(data.employees)) {
           namesToImport = data.employees
         } else {
-          alert('Invalid JSON format. Expected an array of names or an object with "employees" array.')
+          showError('Formato JSON inválido. Se espera un array de nombres o un objeto con propiedad "employees".')
           return
         }
 
@@ -151,9 +158,9 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
         const employees = await storage.getEmployees()
         setEmployees(employees)
         onUpdate()
-        alert(`Successfully imported ${newEmployees.length} employees!`)
+        showSuccess(`Se importaron ${newEmployees.length} empleado${newEmployees.length > 1 ? 's' : ''} correctamente.`, '¡Importación exitosa!')
       } catch (error) {
-        alert('Error parsing JSON file. Please check the file format.')
+        showError('Error al leer el archivo JSON. Verifica el formato del archivo.')
         console.error(error)
       }
     }
@@ -191,33 +198,6 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
 
         {isExpanded && (
           <div className="border-t p-6 space-y-6">
-            {/* Context selectors (read-only when provided by parent) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Sucursal</label>
-                <select
-                  value={selectedBranchCode}
-                  onChange={(e) => setSelectedBranchCode(e.target.value as BranchCode)}
-                  className="input"
-                >
-                  {branchOptions.map(opt => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">División</label>
-                <select
-                  value={selectedDivision}
-                  onChange={(e) => setSelectedDivision(e.target.value as Division)}
-                  className="input"
-                >
-                  {divisionOptions.map(opt => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
             <div className="flex items-center justify-end space-x-2">
               <label className="btn btn-secondary flex items-center space-x-2 cursor-pointer">
                 <Upload className="h-5 w-5" />

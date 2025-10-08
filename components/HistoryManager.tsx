@@ -6,6 +6,7 @@ import { storage } from '@/lib/storage'
 import { parseLocalDate } from '@/lib/utils'
 import { exportAllSchedulesToCSV } from '@/lib/exportUtils'
 import { History, Eye, Trash2, Calendar, ChevronDown, ChevronUp, AlertTriangle, Download } from 'lucide-react'
+import { showDangerConfirm, showError } from '@/lib/sweetalert'
 
 interface HistoryManagerProps {
   onScheduleSelect: (schedule: Schedule | null) => void
@@ -40,7 +41,13 @@ export default function HistoryManager({ onScheduleSelect, activeScheduleId, bra
   }
 
   const handleDelete = async (id: string) => {
-    if (confirm('¿Estás seguro de eliminar este horario? Esta acción no se puede deshacer.')) {
+    const confirmed = await showDangerConfirm(
+      'Esta acción no se puede deshacer.',
+      '¿Eliminar horario?',
+      'Sí, eliminar'
+    )
+
+    if (confirmed) {
       await storage.deleteSchedule(id)
       await loadSchedules()
 
@@ -64,7 +71,13 @@ export default function HistoryManager({ onScheduleSelect, activeScheduleId, bra
   }
 
   const handleClearAll = async () => {
-    if (confirm('⚠️ ADVERTENCIA: Esto eliminará TODOS los horarios guardados. ¿Estás seguro?\n\nEsta acción no se puede deshacer.')) {
+    const confirmed = await showDangerConfirm(
+      'Esto eliminará TODOS los horarios guardados. Esta acción no se puede deshacer.',
+      '⚠️ ADVERTENCIA',
+      'Sí, eliminar todo'
+    )
+
+    if (confirmed) {
       await storage.clearAllSchedules()
       setSchedules([])
       onScheduleSelect(null)
@@ -85,7 +98,7 @@ export default function HistoryManager({ onScheduleSelect, activeScheduleId, bra
       exportAllSchedulesToCSV(schedules, employees, filename)
     } catch (error) {
       console.error('Error exporting all schedules:', error)
-      alert('Error al exportar los horarios. Por favor, intenta de nuevo.')
+      showError('Error al exportar los horarios. Por favor, intenta de nuevo.')
     }
   }
 

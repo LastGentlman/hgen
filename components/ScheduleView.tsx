@@ -7,6 +7,7 @@ import { formatTime, calculateShiftDuration } from '@/lib/utils'
 import { User, Clock, Download, FileText } from 'lucide-react'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
+import { showError } from '@/lib/sweetalert'
 
 interface ScheduleViewProps {
   schedule: Schedule | null
@@ -136,7 +137,7 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
       pdf.save(`${schedule.name}.pdf`)
     } catch (error) {
       console.error('Error generating PDF:', error)
-      alert('Error generating PDF. Please try again.')
+      showError('Error al generar el PDF. Por favor intenta de nuevo.')
     }
   }
 

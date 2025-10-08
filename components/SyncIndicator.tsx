@@ -50,11 +50,11 @@ export default function SyncIndicator() {
 
     setIsSyncing(true)
     try {
-      // 1. Sincronizar cola de operaciones pendientes
+      // 1. Sincronizar cola de operaciones pendientes (push to Supabase)
       await processSyncQueue()
 
-      // 2. Sincronizar datos desde servidor
-      await storage.syncFromServer()
+      // 2. DISABLED: No sincronizar desde servidor (localStorage es la fuente de verdad)
+      // await storage.syncFromServer()
 
       setLastSync(getLastSync())
     } catch (error) {
