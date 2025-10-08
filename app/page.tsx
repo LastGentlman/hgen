@@ -34,19 +34,67 @@ export default function Home() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   useEffect(() => {
-    const loadedEmployees = storage.getEmployees()
-    const loadedSchedules = storage.getSchedules()
+    const loadData = async () => {
+      const loadedEmployees = await storage.getEmployees()
+      const loadedSchedules = await storage.getSchedules()
 
-    setEmployees(loadedEmployees)
-    setSchedules(loadedSchedules)
+      setEmployees(loadedEmployees)
+      setSchedules(loadedSchedules)
 
-    // Auto-select the most current schedule (closest to today) if any exist
-    if (loadedSchedules.length > 0) {
+      // Auto-select the most current schedule (closest to today) if any exist
+      if (loadedSchedules.length > 0) {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+
+        // Filter by context
+        const contextSchedules = loadedSchedules.filter(s =>
+          (!s.branchCode || s.branchCode === branchCode) && (!s.division || s.division === division)
+        )
+
+        if (contextSchedules.length === 0) {
+          setActiveSchedule(null)
+          return
+        }
+
+        const sortedSchedules = [...contextSchedules].sort((a, b) => {
+          const [aYear, aMonth, aDay] = a.startDate.split('-').map(Number)
+          const aStart = new Date(aYear, aMonth - 1, aDay).getTime()
+          const [bYear, bMonth, bDay] = b.startDate.split('-').map(Number)
+          const bStart = new Date(bYear, bMonth - 1, bDay).getTime()
+          const todayTime = today.getTime()
+
+          // Prefer schedules that include today
+          const [aEYear, aEMonth, aEDay] = a.endDate.split('-').map(Number)
+          const aEnd = new Date(aEYear, aEMonth - 1, aEDay).getTime()
+          const [bEYear, bEMonth, bEDay] = b.endDate.split('-').map(Number)
+          const bEnd = new Date(bEYear, bEMonth - 1, bEDay).getTime()
+
+          const aIncludes = aStart <= todayTime && aEnd >= todayTime
+          const bIncludes = bStart <= todayTime && bEnd >= todayTime
+
+          if (aIncludes && !bIncludes) return -1
+          if (!aIncludes && bIncludes) return 1
+
+          // Otherwise sort by most recent
+          return bStart - aStart
+        })
+        setActiveSchedule(sortedSchedules[0])
+      } else {
+        setActiveSchedule(null)
+      }
+    }
+
+    loadData()
+  }, [])
+
+  // When context changes, select appropriate schedule if exists
+  useEffect(() => {
+    const updateContext = async () => {
+      const allSchedules = await storage.getSchedules()
       const today = new Date()
       today.setHours(0, 0, 0, 0)
 
-      // Filter by context
-      const contextSchedules = loadedSchedules.filter(s =>
+      const contextSchedules = allSchedules.filter(s =>
         (!s.branchCode || s.branchCode === branchCode) && (!s.division || s.division === division)
       )
 
@@ -55,75 +103,37 @@ export default function Home() {
         return
       }
 
-      const sortedSchedules = [...contextSchedules].sort((a, b) => {
-        const [aYear, aMonth, aDay] = a.startDate.split('-').map(Number)
-        const aStart = new Date(aYear, aMonth - 1, aDay).getTime()
-        const [bYear, bMonth, bDay] = b.startDate.split('-').map(Number)
-        const bStart = new Date(bYear, bMonth - 1, bDay).getTime()
+      // Pick the one that includes today if possible, else most recent
+      const sorted = [...contextSchedules].sort((a, b) => {
+        const aStart = new Date(a.startDate).getTime()
+        const bStart = new Date(b.startDate).getTime()
+        const aEnd = new Date(a.endDate).getTime()
+        const bEnd = new Date(b.endDate).getTime()
         const todayTime = today.getTime()
-
-        // Prefer schedules that include today
-        const [aEYear, aEMonth, aEDay] = a.endDate.split('-').map(Number)
-        const aEnd = new Date(aEYear, aEMonth - 1, aEDay).getTime()
-        const [bEYear, bEMonth, bEDay] = b.endDate.split('-').map(Number)
-        const bEnd = new Date(bEYear, bEMonth - 1, bEDay).getTime()
-
         const aIncludes = aStart <= todayTime && aEnd >= todayTime
         const bIncludes = bStart <= todayTime && bEnd >= todayTime
-
         if (aIncludes && !bIncludes) return -1
         if (!aIncludes && bIncludes) return 1
-
-        // Otherwise sort by most recent
         return bStart - aStart
       })
-      setActiveSchedule(sortedSchedules[0])
-    } else {
-      setActiveSchedule(null)
-    }
-  }, [])
-
-  // When context changes, select appropriate schedule if exists
-  useEffect(() => {
-    const allSchedules = storage.getSchedules()
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-
-    const contextSchedules = allSchedules.filter(s =>
-      (!s.branchCode || s.branchCode === branchCode) && (!s.division || s.division === division)
-    )
-
-    if (contextSchedules.length === 0) {
-      setActiveSchedule(null)
-      return
+      setActiveSchedule(sorted[0])
     }
 
-    // Pick the one that includes today if possible, else most recent
-    const sorted = [...contextSchedules].sort((a, b) => {
-      const aStart = new Date(a.startDate).getTime()
-      const bStart = new Date(b.startDate).getTime()
-      const aEnd = new Date(a.endDate).getTime()
-      const bEnd = new Date(b.endDate).getTime()
-      const todayTime = today.getTime()
-      const aIncludes = aStart <= todayTime && aEnd >= todayTime
-      const bIncludes = bStart <= todayTime && bEnd >= todayTime
-      if (aIncludes && !bIncludes) return -1
-      if (!aIncludes && bIncludes) return 1
-      return bStart - aStart
-    })
-    setActiveSchedule(sorted[0])
+    updateContext()
   }, [branchCode, division])
 
-  const handleEmployeeUpdate = () => {
-    setEmployees(storage.getEmployees())
+  const handleEmployeeUpdate = async () => {
+    const employees = await storage.getEmployees()
+    setEmployees(employees)
   }
 
-  const handleScheduleUpdate = () => {
-    const updatedSchedules = storage.getSchedules()
+  const handleScheduleUpdate = async () => {
+    const updatedSchedules = await storage.getSchedules()
     setSchedules(updatedSchedules)
 
     // Also refresh employees in case shift assignments changed
-    setEmployees(storage.getEmployees())
+    const employees = await storage.getEmployees()
+    setEmployees(employees)
 
     // Update active schedule if it was modified
     if (activeSchedule) {

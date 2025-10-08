@@ -23,8 +23,9 @@ export default function HistoryManager({ onScheduleSelect, activeScheduleId, bra
     loadSchedules()
   }, [])
 
-  const loadSchedules = () => {
-    const loadedSchedules = storage.getSchedules()
+  const loadSchedules = async () => {
+    const allSchedules = await storage.getSchedules()
+    const loadedSchedules = allSchedules
       .filter(s => {
         // If context provided, include only matching schedules (or those untagged for backward compatibility)
         if (branchCode && s.branchCode && s.branchCode !== branchCode) return false
@@ -38,10 +39,10 @@ export default function HistoryManager({ onScheduleSelect, activeScheduleId, bra
     setSchedules(sortedSchedules)
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('¿Estás seguro de eliminar este horario? Esta acción no se puede deshacer.')) {
-      storage.deleteSchedule(id)
-      loadSchedules()
+      await storage.deleteSchedule(id)
+      await loadSchedules()
 
       // If deleted schedule was active
       if (activeScheduleId === id) {
@@ -62,9 +63,9 @@ export default function HistoryManager({ onScheduleSelect, activeScheduleId, bra
     }
   }
 
-  const handleClearAll = () => {
+  const handleClearAll = async () => {
     if (confirm('⚠️ ADVERTENCIA: Esto eliminará TODOS los horarios guardados. ¿Estás seguro?\n\nEsta acción no se puede deshacer.')) {
-      storage.clearAllSchedules()
+      await storage.clearAllSchedules()
       setSchedules([])
       onScheduleSelect(null)
 
@@ -75,9 +76,9 @@ export default function HistoryManager({ onScheduleSelect, activeScheduleId, bra
     }
   }
 
-  const handleExportAll = () => {
+  const handleExportAll = async () => {
     try {
-      const employees = storage.getEmployees()
+      const employees = await storage.getEmployees()
       const timestamp = new Date().toISOString().split('T')[0]
       const filename = `todos_los_horarios_${timestamp}.csv`
 

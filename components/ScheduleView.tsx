@@ -40,7 +40,7 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
     }
   }
 
-  const handleAssignShift = (dayIndex: number, shiftIndex: number, employeeId: string) => {
+  const handleAssignShift = async (dayIndex: number, shiftIndex: number, employeeId: string) => {
     if (!schedule) return
 
     const updatedSchedule = { ...schedule }
@@ -57,11 +57,11 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
       shift.status = 'assigned'
     }
 
-    storage.updateSchedule(schedule.id, updatedSchedule)
+    await storage.updateSchedule(schedule.id, updatedSchedule)
     onUpdate()
   }
 
-  const handleStatusChange = (dayIndex: number, shiftIndex: number, status: ShiftStatus) => {
+  const handleStatusChange = async (dayIndex: number, shiftIndex: number, status: ShiftStatus) => {
     if (!schedule) return
 
     const updatedSchedule = { ...schedule }
@@ -78,7 +78,7 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
       shift.isAssigned = false
     }
 
-    storage.updateSchedule(schedule.id, updatedSchedule)
+    await storage.updateSchedule(schedule.id, updatedSchedule)
     onUpdate()
   }
 

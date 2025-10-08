@@ -79,7 +79,7 @@ interface EmployeeContextMenuProps {
   isOpen: boolean
   position: { x: number; y: number }
   employeeId: string
-  currentBranchCode: BranchCode
+  currentBranchCode: BranchCode | undefined
   onTransfer: (employeeId: string, targetBranch: BranchCode) => void
   onDelete: (employeeId: string) => void
   onClose: () => void
@@ -1036,147 +1036,151 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
   // Auto-assign shifts and ensure unique positions per shift type (not globally)
   useEffect(() => {
-    if (!schedule || employees.length === 0) return
+    const autoAssignShifts = async () => {
+      if (!schedule || employees.length === 0) return
 
-    let hasChanges = false
-    const updatedSchedule = { ...schedule }
+      let hasChanges = false
+      const updatedSchedule = { ...schedule }
 
-    // Process each shift type separately
-    const shiftTypes: ShiftType[] = ['morning', 'afternoon', 'night']
+      // Process each shift type separately
+      const shiftTypes: ShiftType[] = ['morning', 'afternoon', 'night']
 
-    shiftTypes.forEach(shiftType => {
-      // Get all employees assigned to this shift
-      const employeesInShift = employeesWithShifts.filter(emp => emp.assignedShift === shiftType)
-      if (employeesInShift.length === 0) return
+      shiftTypes.forEach(shiftType => {
+        // Get all employees assigned to this shift
+        const employeesInShift = employeesWithShifts.filter(emp => emp.assignedShift === shiftType)
+        if (employeesInShift.length === 0) return
 
-      // Available positions pool - Turno 3 (night) does NOT have C1
-      const availablePositions: PositionType[] = shiftType === 'night'
-        ? ['C2', 'C3']
-        : ['C1', 'C2', 'C3']
+        // Available positions pool - Turno 3 (night) does NOT have C1
+        const availablePositions: PositionType[] = shiftType === 'night'
+          ? ['C2', 'C3']
+          : ['C1', 'C2', 'C3']
 
-      const shiftConfig = SHIFT_LABELS[shiftType as keyof typeof SHIFT_LABELS]
-      if (!shiftConfig) return
+        const shiftConfig = SHIFT_LABELS[shiftType as keyof typeof SHIFT_LABELS]
+        if (!shiftConfig) return
 
-      const [startTime, endTime] = shiftConfig.time.split('-')
+        const [startTime, endTime] = shiftConfig.time.split('-')
 
-      // Map to track current positions and detect duplicates WITHIN THIS SHIFT
-      const employeePositions = new Map<string, PositionType>()
+        // Map to track current positions and detect duplicates WITHIN THIS SHIFT
+        const employeePositions = new Map<string, PositionType>()
 
-      // First pass: collect current positions for employees in this shift
-      employeesInShift.forEach(employee => {
-        // Find this employee's shift in the first day to get their current position
-        const firstDayShift = updatedSchedule.days[0]?.shifts.find(s =>
-          s.startTime === startTime &&
-          s.endTime === endTime &&
-          s.employeeId === employee.id
-        )
-
-        if (firstDayShift?.position) {
-          employeePositions.set(employee.id, firstDayShift.position)
-        }
-      })
-
-      // Detect duplicates (excluding EXT) WITHIN THIS SHIFT
-      const positionCounts = new Map<PositionType, number>()
-      employeePositions.forEach(pos => {
-        if (pos !== 'EXT') {
-          positionCounts.set(pos, (positionCounts.get(pos) || 0) + 1)
-        }
-      })
-
-      // Reassign positions if there are duplicates or unassigned employees
-      const usedPositions = new Set<PositionType>()
-      const needsReassignment: string[] = []
-
-      employeesInShift.forEach(employee => {
-        const currentPos = employeePositions.get(employee.id)
-
-        if (!currentPos) {
-          // No position assigned
-          needsReassignment.push(employee.id)
-        } else if (currentPos !== 'EXT' && (positionCounts.get(currentPos) || 0) > 1) {
-          // Duplicate position (not EXT) - only reassign if this is not the first occurrence
-          const isFirstWithPosition = Array.from(employeePositions.entries())
-            .find(([id, pos]) => pos === currentPos)?.[0] === employee.id
-
-          if (!isFirstWithPosition) {
-            needsReassignment.push(employee.id)
-          } else {
-            usedPositions.add(currentPos)
-          }
-        } else if (currentPos !== 'EXT') {
-          // Valid unique position, mark as used
-          usedPositions.add(currentPos)
-        }
-      })
-
-      // Assign positions to employees that need reassignment
-      needsReassignment.forEach(employeeId => {
-        let newPosition: PositionType
-
-        // Find first available position in this shift
-        const available = availablePositions.find(p => !usedPositions.has(p))
-
-        if (available) {
-          newPosition = available
-          usedPositions.add(newPosition)
-        } else {
-          newPosition = 'EXT'
-        }
-
-        employeePositions.set(employeeId, newPosition)
-        hasChanges = true
-      })
-
-      // Apply positions to all days for each employee in this shift
-      employeesInShift.forEach(employee => {
-        const position = employeePositions.get(employee.id) || 'EXT'
-
-        updatedSchedule.days.forEach(day => {
-          // Find or create shift for this employee
-          let shiftIndex = day.shifts.findIndex(s =>
+        // First pass: collect current positions for employees in this shift
+        employeesInShift.forEach(employee => {
+          // Find this employee's shift in the first day to get their current position
+          const firstDayShift = updatedSchedule.days[0]?.shifts.find(s =>
             s.startTime === startTime &&
             s.endTime === endTime &&
             s.employeeId === employee.id
           )
 
-          if (shiftIndex === -1) {
-            // Create new shift for this employee
-            const { generateId } = require('@/lib/utils')
-            day.shifts.push({
-              id: generateId(),
-              startTime,
-              endTime,
-              date: day.date,
-              employeeId: employee.id,
-              isAssigned: true,
-              status: 'assigned',
-              position
-            })
-            hasChanges = true
-          } else {
-            // Update existing shift
-            const shift = day.shifts[shiftIndex]
-            if (shift.position !== position) {
-              shift.position = position
-              hasChanges = true
-            }
-            if (!shift.employeeId) {
-              shift.employeeId = employee.id
-              shift.status = 'assigned'
-              shift.isAssigned = true
-              hasChanges = true
-            }
+          if (firstDayShift?.position) {
+            employeePositions.set(employee.id, firstDayShift.position)
           }
         })
-      })
-    })
 
-    // Save changes if any were made
-    if (hasChanges) {
-      storage.updateSchedule(schedule.id, updatedSchedule)
-      onUpdate()
+        // Detect duplicates (excluding EXT) WITHIN THIS SHIFT
+        const positionCounts = new Map<PositionType, number>()
+        employeePositions.forEach(pos => {
+          if (pos !== 'EXT') {
+            positionCounts.set(pos, (positionCounts.get(pos) || 0) + 1)
+          }
+        })
+
+        // Reassign positions if there are duplicates or unassigned employees
+        const usedPositions = new Set<PositionType>()
+        const needsReassignment: string[] = []
+
+        employeesInShift.forEach(employee => {
+          const currentPos = employeePositions.get(employee.id)
+
+          if (!currentPos) {
+            // No position assigned
+            needsReassignment.push(employee.id)
+          } else if (currentPos !== 'EXT' && (positionCounts.get(currentPos) || 0) > 1) {
+            // Duplicate position (not EXT) - only reassign if this is not the first occurrence
+            const isFirstWithPosition = Array.from(employeePositions.entries())
+              .find(([id, pos]) => pos === currentPos)?.[0] === employee.id
+
+            if (!isFirstWithPosition) {
+              needsReassignment.push(employee.id)
+            } else {
+              usedPositions.add(currentPos)
+            }
+          } else if (currentPos !== 'EXT') {
+            // Valid unique position, mark as used
+            usedPositions.add(currentPos)
+          }
+        })
+
+        // Assign positions to employees that need reassignment
+        needsReassignment.forEach(employeeId => {
+          let newPosition: PositionType
+
+          // Find first available position in this shift
+          const available = availablePositions.find(p => !usedPositions.has(p))
+
+          if (available) {
+            newPosition = available
+            usedPositions.add(newPosition)
+          } else {
+            newPosition = 'EXT'
+          }
+
+          employeePositions.set(employeeId, newPosition)
+          hasChanges = true
+        })
+
+        // Apply positions to all days for each employee in this shift
+        employeesInShift.forEach(employee => {
+          const position = employeePositions.get(employee.id) || 'EXT'
+
+          updatedSchedule.days.forEach(day => {
+            // Find or create shift for this employee
+            let shiftIndex = day.shifts.findIndex(s =>
+              s.startTime === startTime &&
+              s.endTime === endTime &&
+              s.employeeId === employee.id
+            )
+
+            if (shiftIndex === -1) {
+              // Create new shift for this employee
+              const { generateId } = require('@/lib/utils')
+              day.shifts.push({
+                id: generateId(),
+                startTime,
+                endTime,
+                date: day.date,
+                employeeId: employee.id,
+                isAssigned: true,
+                status: 'assigned',
+                position
+              })
+              hasChanges = true
+            } else {
+              // Update existing shift
+              const shift = day.shifts[shiftIndex]
+              if (shift.position !== position) {
+                shift.position = position
+                hasChanges = true
+              }
+              if (!shift.employeeId) {
+                shift.employeeId = employee.id
+                shift.status = 'assigned'
+                shift.isAssigned = true
+                hasChanges = true
+              }
+            }
+          })
+        })
+      })
+
+      // Save changes if any were made
+      if (hasChanges) {
+        await storage.updateSchedule(schedule.id, updatedSchedule)
+        onUpdate()
+      }
     }
+
+    autoAssignShifts()
   }, [schedule?.id, employeesWithShifts.length]) // Run when schedule changes or employee count changes
 
   // Hotkey handler for quick status assignment (single or multi-selection)
@@ -1359,7 +1363,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   }
 
   // Apply status directly via hotkey (no rotation)
-  const applyStatus = (targetStatus: ShiftStatus, employeeId: string, dayIndex: number, shiftType: ShiftType) => {
+  const applyStatus = async (targetStatus: ShiftStatus, employeeId: string, dayIndex: number, shiftType: ShiftType) => {
     if (!schedule) return
 
     const updatedSchedule = { ...schedule }
@@ -1506,7 +1510,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       }
     })
 
-    storage.updateSchedule(schedule.id, updatedSchedule)
+    await storage.updateSchedule(schedule.id, updatedSchedule)
     onUpdate()
   }
 
@@ -1544,7 +1548,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     })
   }
 
-  const handleCoverageSelect = (coverageInfo: CoverageInfo) => {
+  const handleCoverageSelect = async (coverageInfo: CoverageInfo) => {
     if (!coverageMenu || !schedule) return
 
     const updatedSchedule = { ...schedule }
@@ -1557,7 +1561,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       }
     }
 
-    storage.updateSchedule(schedule.id, updatedSchedule)
+    await storage.updateSchedule(schedule.id, updatedSchedule)
     onUpdate()
   }
 
@@ -1570,12 +1574,12 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     })
   }
 
-  const handleEmployeeTransfer = (employeeId: string, targetBranch: BranchCode) => {
+  const handleEmployeeTransfer = async (employeeId: string, targetBranch: BranchCode) => {
     const employee = employees.find(emp => emp.id === employeeId)
     if (!employee) return
 
     // Update employee's branch
-    storage.updateEmployee(employeeId, { branchCode: targetBranch })
+    await storage.updateEmployee(employeeId, { branchCode: targetBranch })
     onUpdate()
   }
 
@@ -1591,7 +1595,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     })
   }
 
-  const handleDeleteFromScheduleOnly = (employeeId: string) => {
+  const handleDeleteFromScheduleOnly = async (employeeId: string) => {
     if (!schedule) return
 
     // Remove all shifts assigned to this employee in THIS schedule only
@@ -1607,7 +1611,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       })
     })
 
-    storage.updateSchedule(schedule.id, updatedSchedule)
+    await storage.updateSchedule(schedule.id, updatedSchedule)
 
     // Hide employee from grid
     setHiddenEmployees(prev => new Set(prev).add(employeeId))
@@ -1615,11 +1619,11 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     onUpdate()
   }
 
-  const handleDeleteEmployeePermanently = (employeeId: string) => {
+  const handleDeleteEmployeePermanently = async (employeeId: string) => {
     if (!schedule) return
 
     // Remove employee from storage (permanently)
-    storage.deleteEmployee(employeeId)
+    await storage.deleteEmployee(employeeId)
 
     // Remove all shifts assigned to this employee in THIS schedule
     const updatedSchedule = { ...schedule }
@@ -1634,11 +1638,11 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       })
     })
 
-    storage.updateSchedule(schedule.id, updatedSchedule)
+    await storage.updateSchedule(schedule.id, updatedSchedule)
     onUpdate()
   }
 
-  const handleEmployeeShiftChange = (employeeId: string, newShiftType: ShiftType) => {
+  const handleEmployeeShiftChange = async (employeeId: string, newShiftType: ShiftType) => {
     if (!schedule) return
     // Find the employee and update their shift
     const employee = employeesWithShifts.find(emp => emp.id === employeeId)
@@ -1725,14 +1729,14 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       })
 
       // Save the updated schedule
-      storage.updateSchedule(schedule.id, updatedSchedule)
+      await storage.updateSchedule(schedule.id, updatedSchedule)
     }
 
     // Trigger update in parent to refresh employee list
     onUpdate()
   }
 
-  const handlePositionChange = (employeeId: string, position: PositionType) => {
+  const handlePositionChange = async (employeeId: string, position: PositionType) => {
     if (!schedule) return
     // Find the employee to get their shift type
     const employee = employeesWithShifts.find(emp => emp.id === employeeId)
@@ -1783,11 +1787,11 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       })
     })
 
-    storage.updateSchedule(schedule.id, updatedSchedule)
+    await storage.updateSchedule(schedule.id, updatedSchedule)
     onUpdate()
   }
 
-  const handleVacationDrop = (employeeId: string, targetDayIndex: number, shiftType: ShiftType) => {
+  const handleVacationDrop = async (employeeId: string, targetDayIndex: number, shiftType: ShiftType) => {
     if (!schedule) return
 
     const updatedSchedule = { ...schedule }
@@ -1868,7 +1872,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       }
     })
 
-    storage.updateSchedule(schedule.id, updatedSchedule)
+    await storage.updateSchedule(schedule.id, updatedSchedule)
     onUpdate()
   }
 
@@ -1903,7 +1907,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
     try {
       // Use ALL employees from storage, not just filtered ones
-      const allEmployees = storage.getEmployees()
+      const allEmployees = await storage.getEmployees()
       console.log('[handleImportFromCSV] 👥 Available employees:', allEmployees.length)
 
       if (allEmployees.length === 0) {
@@ -1936,19 +1940,19 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
             console.log('[handleImportFromCSV] ✓ Multiple schedules imported:', importedSchedules.length)
 
             // Save all imported schedules
-            importedSchedules.forEach(importedSchedule => {
+            for (const importedSchedule of importedSchedules) {
               // Tag with current organizational context
               importedSchedule.branchCode = branchCode || '001'
               importedSchedule.division = division || 'super'
 
               console.log('[handleImportFromCSV] 💾 Creating schedule:', importedSchedule.name)
-              storage.addSchedule(importedSchedule)
+              await storage.addSchedule(importedSchedule)
 
-              const savedSchedule = storage.getSchedules().find(s => s.id === importedSchedule.id)
+              const savedSchedule = (await storage.getSchedules()).find(s => s.id === importedSchedule.id)
               console.log('[handleImportFromCSV] ✓ Schedule saved:', savedSchedule ? 'YES' : 'NO')
 
               importedScheduleNames.push(importedSchedule.name)
-            })
+            }
 
             successCount += importedSchedules.length
           } else {
@@ -1973,9 +1977,9 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
             if (targetSchedule && !isMultipleFiles) {
               // Update existing schedule (single file mode only)
               console.log('[handleImportFromCSV] 💾 Updating existing schedule:', targetSchedule.id)
-              storage.updateSchedule(targetSchedule.id, updatedSchedule)
+              await storage.updateSchedule(targetSchedule.id, updatedSchedule)
 
-              const savedSchedule = storage.getSchedules().find(s => s.id === targetSchedule.id)
+              const savedSchedule = (await storage.getSchedules()).find(s => s.id === targetSchedule.id)
               console.log('[handleImportFromCSV] ✓ Schedule updated in storage:', savedSchedule ? 'YES' : 'NO')
             } else {
               // Create new schedule from CSV
@@ -1984,9 +1988,9 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
               updatedSchedule.division = division || 'super'
 
               console.log('[handleImportFromCSV] 💾 Creating new schedule:', updatedSchedule.name)
-              storage.addSchedule(updatedSchedule)
+              await storage.addSchedule(updatedSchedule)
 
-              const allSchedules = storage.getSchedules()
+              const allSchedules = await storage.getSchedules()
               const savedSchedule = allSchedules.find(s => s.id === updatedSchedule.id)
               console.log('[handleImportFromCSV] ✓ Schedule saved in storage:', savedSchedule ? 'YES' : 'NO')
             }
@@ -2026,7 +2030,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
           alert(`✅ Horario importado:\n${importedScheduleNames[0]}`)
         } else {
           // Regular single schedule CSV
-          const totalShifts = storage.getSchedules().find(s => s.branchCode === branchCode)?.days.reduce((sum, day) => sum + day.shifts.length, 0) || 0
+          const totalShifts = (await storage.getSchedules()).find(s => s.branchCode === branchCode)?.days.reduce((sum, day) => sum + day.shifts.length, 0) || 0
           if (schedule) {
             alert(`✅ Horario actualizado desde CSV\n${totalShifts} turnos procesados`)
           } else {
@@ -2144,7 +2148,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     return coveringEmployees
   }
 
-  const handleCreateNextSchedule = () => {
+  const handleCreateNextSchedule = async () => {
     let startDate: Date
     let scheduleName: string
     let targetBranchCode: BranchCode
@@ -2241,7 +2245,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     }
 
     // Find next available period (skip if already exists)
-    const existingSchedules = storage.getSchedules()
+    const existingSchedules = await storage.getSchedules()
     let attempts = 0
     const maxAttempts = 24 // 12 months = 24 biweekly periods
 
@@ -2410,7 +2414,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       })
 
       // Step 4: Update employee rotation counters
-      const allEmployees = storage.getEmployees()
+      const allEmployees = await storage.getEmployees()
       const updatedEmployees = allEmployees.map(emp => {
         // Check if this employee is in the new schedule
         const isInSchedule = newSchedule.days.some(day =>
@@ -2425,10 +2429,17 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
         }
         return emp
       })
-      storage.saveEmployees(updatedEmployees)
+
+      // Update each employee individually
+      for (const emp of updatedEmployees) {
+        const original = allEmployees.find(e => e.id === emp.id)
+        if (original && emp.shiftRotationCount !== original.shiftRotationCount) {
+          await storage.updateEmployee(emp.id, { shiftRotationCount: emp.shiftRotationCount })
+        }
+      }
     }
 
-    storage.addSchedule(newSchedule)
+    await storage.addSchedule(newSchedule)
     onUpdate()
     alert(`✅ Horario creado: ${scheduleName}`)
   }

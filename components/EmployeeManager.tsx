@@ -22,7 +22,11 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
   const [selectedDivision, setSelectedDivision] = useState<Division>(division || 'super')
 
   useEffect(() => {
-    setEmployees(storage.getEmployees())
+    const loadEmployees = async () => {
+      const employees = await storage.getEmployees()
+      setEmployees(employees)
+    }
+    loadEmployees()
   }, [])
 
   // Keep local selectors in sync when parent context changes
@@ -65,7 +69,7 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
     setFormData({ ...employee })
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name?.trim()) return
 
     const employeeData: Employee = {
@@ -79,12 +83,13 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
     }
 
     if (editingId) {
-      storage.updateEmployee(editingId, employeeData)
+      await storage.updateEmployee(editingId, employeeData)
     } else {
-      storage.addEmployee(employeeData)
+      await storage.addEmployee(employeeData)
     }
 
-    setEmployees(storage.getEmployees())
+    const employees = await storage.getEmployees()
+    setEmployees(employees)
     setIsAdding(false)
     setEditingId(null)
     setFormData({})
@@ -97,10 +102,11 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
     setFormData({})
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this employee?')) {
-      storage.deleteEmployee(id)
-      setEmployees(storage.getEmployees())
+      await storage.deleteEmployee(id)
+      const employees = await storage.getEmployees()
+      setEmployees(employees)
       onUpdate()
     }
   }
@@ -110,7 +116,7 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
     if (!file) return
 
     const reader = new FileReader()
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const content = e.target?.result as string
         const data = JSON.parse(content)
@@ -138,9 +144,12 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
         }))
 
         // Add all new employees
-        newEmployees.forEach(emp => storage.addEmployee(emp))
+        for (const emp of newEmployees) {
+          await storage.addEmployee(emp)
+        }
 
-        setEmployees(storage.getEmployees())
+        const employees = await storage.getEmployees()
+        setEmployees(employees)
         onUpdate()
         alert(`Successfully imported ${newEmployees.length} employees!`)
       } catch (error) {

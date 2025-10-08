@@ -600,7 +600,7 @@ export function importAllSchedulesFromCSV(
                 if (row.coverageShift === rowShiftType) {
                   console.warn(`[importAllSchedulesFromCSV] ⚠️ Invalid coverage: ${row.employeeName} in ${rowShiftType} cannot cover ${rowShiftType}. Using default T3.`)
                   coverageInfo = {
-                    type: 'shift',
+                    type: 'shift' as const,
                     targetShift: 'night'
                   }
                 } else {
@@ -613,7 +613,7 @@ export function importAllSchedulesFromCSV(
                 }
               } else {
                 coverageInfo = {
-                  type: 'shift',
+                  type: 'shift' as const,
                   targetShift: 'night'
                 }
               }
@@ -884,7 +884,7 @@ export function importFromCSV(
               if (row.coverageShift === rowShiftType) {
                 console.warn(`[importFromCSV] ⚠️ Invalid coverage: ${row.employeeName} in ${rowShiftType} cannot cover ${rowShiftType}. Using default T3.`)
                 coverageInfo = {
-                  type: 'shift',
+                  type: 'shift' as const,
                   targetShift: 'night'
                 }
               } else {
@@ -899,7 +899,7 @@ export function importFromCSV(
             } else {
               // Default: covering T3 (night shift) if not specified
               coverageInfo = {
-                type: 'shift',
+                type: 'shift' as const,
                 targetShift: 'night'
               }
               console.log(`[importFromCSV] 📍 Default coverage T3 applied for ${row.employeeName} on ${row.date}`)

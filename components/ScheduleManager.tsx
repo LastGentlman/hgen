@@ -22,7 +22,11 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
   })
 
   useEffect(() => {
-    setSchedules(storage.getSchedules())
+    const loadSchedules = async () => {
+      const schedules = await storage.getSchedules()
+      setSchedules(schedules)
+    }
+    loadSchedules()
   }, [])
 
   const handleCreate = () => {
@@ -35,14 +39,15 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
     })
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name.trim() || !formData.startDate) return
 
     const templates = getDefaultShiftTemplates()
     const schedule = generateWeeklySchedule(formData.startDate, formData.name.trim(), templates)
 
-    storage.addSchedule(schedule)
-    setSchedules(storage.getSchedules())
+    await storage.addSchedule(schedule)
+    const schedules = await storage.getSchedules()
+    setSchedules(schedules)
     setIsCreating(false)
     setFormData({ name: '', startDate: '' })
     onUpdate()
@@ -53,10 +58,11 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
     setFormData({ name: '', startDate: '' })
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this schedule?')) {
-      storage.deleteSchedule(id)
-      setSchedules(storage.getSchedules())
+      await storage.deleteSchedule(id)
+      const schedules = await storage.getSchedules()
+      setSchedules(schedules)
       onUpdate()
     }
   }

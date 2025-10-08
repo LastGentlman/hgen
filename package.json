@@ -9,11 +9,12 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.74.0",
     "date-fns": "^2.30.0",
     "html2canvas": "^1.4.1",
-    "jspdf": "^2.5.2",
+    "jspdf": "^3.0.3",
     "lucide-react": "^0.292.0",
-    "next": "14.0.0",
+    "next": "^14.2.33",
     "react": "^18.2.0",
     "react-dnd": "^16.0.1",
     "react-dnd-html5-backend": "^16.0.1",
