@@ -1,221 +1,113 @@
 import { Employee, Schedule } from '@/types'
-import { supabase } from './supabase'
+import { hybridEmployeeStorage, hybridScheduleStorage } from './hybrid-storage'
 
-// Mapeo de campos TypeScript a columnas de la base de datos
-const mapEmployeeToDb = (employee: Employee) => ({
-  id: employee.id,
-  name: employee.name,
-  department: employee.department || null,
-  available_days: employee.availableDays,
-  email: employee.email || null,
-  phone: employee.phone || null,
-  assigned_shift: employee.assignedShift || null,
-  branch_code: employee.branchCode || null,
-  division: employee.division || null,
-  shift_rotation_count: employee.shiftRotationCount || 0,
-})
-
-const mapEmployeeFromDb = (row: any): Employee => ({
-  id: row.id,
-  name: row.name,
-  department: row.department,
-  availableDays: row.available_days,
-  email: row.email,
-  phone: row.phone,
-  assignedShift: row.assigned_shift,
-  branchCode: row.branch_code,
-  division: row.division,
-  shiftRotationCount: row.shift_rotation_count,
-})
-
-const mapScheduleToDb = (schedule: Schedule) => ({
-  id: schedule.id,
-  name: schedule.name,
-  start_date: schedule.startDate,
-  end_date: schedule.endDate,
-  days: schedule.days,
-  branch_code: schedule.branchCode || null,
-  division: schedule.division || null,
-  created_at: schedule.createdAt,
-  updated_at: schedule.updatedAt,
-})
-
-const mapScheduleFromDb = (row: any): Schedule => ({
-  id: row.id,
-  name: row.name,
-  startDate: row.start_date,
-  endDate: row.end_date,
-  days: row.days,
-  branchCode: row.branch_code,
-  division: row.division,
-  createdAt: row.created_at,
-  updatedAt: row.updated_at,
-})
-
+/**
+ * Storage API con soporte híbrido offline/online
+ *
+ * Modo Híbrido:
+ * - Todas las operaciones se guardan PRIMERO en localStorage (inmediato)
+ * - Luego intenta sincronizar con Supabase (si hay conexión)
+ * - Si no hay conexión, la operación se agrega a cola de pendientes
+ * - Cuando vuelve conexión, se sincronizan automáticamente las operaciones pendientes
+ *
+ * ✅ Funciona 100% offline
+ * ✅ Sincronización automática al volver online
+ * ✅ Sin cambios en la API pública (drop-in replacement)
+ */
 export const storage = {
+  // ==========================================
   // Employee operations
+  // ==========================================
+
   async getEmployees(): Promise<Employee[]> {
-    const { data, error } = await supabase
-      .from('employees')
-      .select('*')
-      .order('created_at', { ascending: true })
-
-    if (error) {
-      console.error('Error fetching employees:', error)
-      return []
-    }
-
-    return (data || []).map(mapEmployeeFromDb)
+    return await hybridEmployeeStorage.get()
   },
 
   async addEmployee(employee: Employee): Promise<void> {
-    const { error } = await supabase
-      .from('employees')
-      .insert([mapEmployeeToDb(employee)])
-
-    if (error) {
-      console.error('Error adding employee:', error)
-      throw new Error('Failed to add employee')
-    }
+    await hybridEmployeeStorage.add(employee)
   },
 
   async updateEmployee(id: string, updates: Partial<Employee>): Promise<void> {
-    // Convertir las actualizaciones a formato de base de datos
-    const dbUpdates: any = {}
-
-    if (updates.name !== undefined) dbUpdates.name = updates.name
-    if (updates.department !== undefined) dbUpdates.department = updates.department
-    if (updates.availableDays !== undefined) dbUpdates.available_days = updates.availableDays
-    if (updates.email !== undefined) dbUpdates.email = updates.email
-    if (updates.phone !== undefined) dbUpdates.phone = updates.phone
-    if (updates.assignedShift !== undefined) dbUpdates.assigned_shift = updates.assignedShift
-    if (updates.branchCode !== undefined) dbUpdates.branch_code = updates.branchCode
-    if (updates.division !== undefined) dbUpdates.division = updates.division
-    if (updates.shiftRotationCount !== undefined) dbUpdates.shift_rotation_count = updates.shiftRotationCount
-
-    const { error } = await supabase
-      .from('employees')
-      .update(dbUpdates)
-      .eq('id', id)
-
-    if (error) {
-      console.error('Error updating employee:', error)
-      throw new Error('Failed to update employee')
-    }
+    await hybridEmployeeStorage.update(id, updates)
   },
 
   async deleteEmployee(id: string): Promise<void> {
-    const { error } = await supabase
-      .from('employees')
-      .delete()
-      .eq('id', id)
-
-    if (error) {
-      console.error('Error deleting employee:', error)
-      throw new Error('Failed to delete employee')
-    }
+    await hybridEmployeeStorage.delete(id)
   },
 
+  // ==========================================
   // Schedule operations
+  // ==========================================
+
   async getSchedules(): Promise<Schedule[]> {
-    const { data, error } = await supabase
-      .from('schedules')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      console.error('Error fetching schedules:', error)
-      return []
-    }
-
-    return (data || []).map(mapScheduleFromDb)
+    return await hybridScheduleStorage.get()
   },
 
   async addSchedule(schedule: Schedule): Promise<void> {
-    const { error } = await supabase
-      .from('schedules')
-      .insert([mapScheduleToDb(schedule)])
-
-    if (error) {
-      console.error('Error adding schedule:', error)
-      throw new Error('Failed to add schedule')
-    }
+    await hybridScheduleStorage.add(schedule)
   },
 
   async updateSchedule(id: string, updates: Partial<Schedule>): Promise<void> {
-    // Convertir las actualizaciones a formato de base de datos
-    const dbUpdates: any = {}
-
-    if (updates.name !== undefined) dbUpdates.name = updates.name
-    if (updates.startDate !== undefined) dbUpdates.start_date = updates.startDate
-    if (updates.endDate !== undefined) dbUpdates.end_date = updates.endDate
-    if (updates.days !== undefined) dbUpdates.days = updates.days
-    if (updates.branchCode !== undefined) dbUpdates.branch_code = updates.branchCode
-    if (updates.division !== undefined) dbUpdates.division = updates.division
-
-    // Siempre actualizar updated_at
-    dbUpdates.updated_at = new Date().toISOString()
-
-    const { error } = await supabase
-      .from('schedules')
-      .update(dbUpdates)
-      .eq('id', id)
-
-    if (error) {
-      console.error('Error updating schedule:', error)
-      throw new Error('Failed to update schedule')
-    }
+    await hybridScheduleStorage.update(id, updates)
   },
 
   async deleteSchedule(id: string): Promise<void> {
-    const { error } = await supabase
-      .from('schedules')
-      .delete()
-      .eq('id', id)
-
-    if (error) {
-      console.error('Error deleting schedule:', error)
-      throw new Error('Failed to delete schedule')
-    }
+    await hybridScheduleStorage.delete(id)
   },
 
+  // ==========================================
   // Clear operations
-  async clearAllSchedules(): Promise<void> {
-    const { error } = await supabase
-      .from('schedules')
-      .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all
+  // ==========================================
 
-    if (error) {
-      console.error('Error clearing schedules:', error)
-      throw new Error('Failed to clear schedules')
+  async clearAllSchedules(): Promise<void> {
+    const schedules = await hybridScheduleStorage.get()
+
+    // Eliminar todos de la caché
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('hgen_schedules', JSON.stringify([]))
+    }
+
+    // Intentar eliminar de Supabase (sin agregar a cola si falla)
+    try {
+      const { supabase } = await import('./supabase')
+      await supabase
+        .from('schedules')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000')
+    } catch (error) {
+      console.error('Error clearing schedules from Supabase:', error)
     }
   },
 
   async clearAllData(): Promise<void> {
-    // Eliminar todos los schedules (las edits y métricas se eliminan por CASCADE)
-    const { error: schedulesError } = await supabase
-      .from('schedules')
-      .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000')
-
-    if (schedulesError) {
-      console.error('Error clearing schedules:', schedulesError)
+    // Eliminar todo del caché
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('hgen_employees', JSON.stringify([]))
+      localStorage.setItem('hgen_schedules', JSON.stringify([]))
     }
 
-    // Eliminar todos los empleados
-    const { error: employeesError } = await supabase
-      .from('employees')
-      .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000')
+    // Intentar eliminar de Supabase (sin agregar a cola si falla)
+    try {
+      const { supabase } = await import('./supabase')
 
-    if (employeesError) {
-      console.error('Error clearing employees:', employeesError)
-      throw new Error('Failed to clear all data')
+      await supabase
+        .from('schedules')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000')
+
+      await supabase
+        .from('employees')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000')
+    } catch (error) {
+      console.error('Error clearing data from Supabase:', error)
     }
   },
 
+  // ==========================================
   // Export/Import
+  // ==========================================
+
   async exportData(): Promise<string> {
     const employees = await this.getEmployees()
     const schedules = await this.getSchedules()
@@ -232,28 +124,14 @@ export const storage = {
       const data = JSON.parse(jsonData)
 
       if (data.employees && Array.isArray(data.employees)) {
-        // Insertar empleados
-        const employeesToInsert = data.employees.map(mapEmployeeToDb)
-        const { error: empError } = await supabase
-          .from('employees')
-          .insert(employeesToInsert)
-
-        if (empError) {
-          console.error('Error importing employees:', empError)
-          return { success: false, message: 'Error importing employees' }
+        for (const emp of data.employees) {
+          await this.addEmployee(emp)
         }
       }
 
       if (data.schedules && Array.isArray(data.schedules)) {
-        // Insertar schedules
-        const schedulesToInsert = data.schedules.map(mapScheduleToDb)
-        const { error: schError } = await supabase
-          .from('schedules')
-          .insert(schedulesToInsert)
-
-        if (schError) {
-          console.error('Error importing schedules:', schError)
-          return { success: false, message: 'Error importing schedules' }
+        for (const sch of data.schedules) {
+          await this.addSchedule(sch)
         }
       }
 
@@ -262,5 +140,20 @@ export const storage = {
       console.error('Error parsing JSON:', error)
       return { success: false, message: 'Invalid JSON data' }
     }
+  },
+
+  // ==========================================
+  // Sync operations (new)
+  // ==========================================
+
+  /**
+   * Sincroniza datos desde Supabase hacia la caché local
+   * Útil para refrescar datos después de reconectar
+   */
+  async syncFromServer(): Promise<void> {
+    await Promise.all([
+      hybridEmployeeStorage.syncFromServer(),
+      hybridScheduleStorage.syncFromServer()
+    ])
   }
 }

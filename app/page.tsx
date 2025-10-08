@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { Employee, Schedule, BranchCode, Division } from '@/types'
 import { storage } from '@/lib/storage'
 import { Calendar, Users, Grid3x3, History, Menu } from 'lucide-react'
+import SyncIndicator from '@/components/SyncIndicator'
 
 // Lazy load tab components for better performance
 const EmployeeManager = dynamic(() => import('@/components/EmployeeManager'), {
@@ -328,6 +329,9 @@ export default function Home() {
           />
         )}
       </main>
+
+      {/* Sync Indicator - shows online/offline status and pending operations */}
+      <SyncIndicator />
     </div>
   )
 }
