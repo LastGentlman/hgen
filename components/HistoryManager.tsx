@@ -243,7 +243,7 @@ export default function HistoryManager({ onScheduleSelect, activeScheduleId, bra
                                 if (onGoToGrid) onGoToGrid()
                               }}
                               className="p-2 rounded transition-colors text-primary-600 bg-primary-100"
-                              title="Ver en cuadrícula"
+                              title="Ver horario"
                             >
                               <Eye className="h-5 w-5" />
                             </button>

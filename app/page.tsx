@@ -149,7 +149,7 @@ export default function Home() {
   const tabs = [
     { id: 'employees' as const, label: 'Empleados', icon: Users },
     { id: 'history' as const, label: 'Historial', icon: History },
-    { id: 'grid' as const, label: 'Cuadrícula', icon: Grid3x3 }
+    { id: 'grid' as const, label: 'Horario', icon: Grid3x3 }
   ]
 
   return (
@@ -224,7 +224,7 @@ export default function Home() {
                 ? { label: 'Empleados' }
                 : activeTab === 'history'
                 ? { label: 'Historial' }
-                : { label: 'Cuadrícula' }
+                    : { label: 'Horario' }
             ]}
           />
         </div>
@@ -289,7 +289,7 @@ export default function Home() {
                   }`}
                 >
                   <Grid3x3 className="h-4 w-4" />
-                  <span>Cuadrícula</span>
+                  <span>Horario</span>
                 </button>
               </div>
             </div>

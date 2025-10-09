@@ -2535,23 +2535,23 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
         {/* Header con acciones */}
         <div className="card">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-4">
-            <h2 className="text-2xl font-bold text-gray-900">Vista de cuadrícula</h2>
+            <h2 className="text-2xl font-bold text-gray-900">Horario</h2>
 
             <div className="flex items-center gap-3">
               {/* Menú desplegable */}
               <div className="relative" ref={actionsMenuRef}>
                 <button
                   onClick={() => setIsActionsMenuOpen(!isActionsMenuOpen)}
-                  className="btn btn-primary flex items-center space-x-2"
+                  className="p-2 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50"
                   title="Menú de opciones"
+                  aria-label="Menú de opciones"
                 >
-                  <MoreVertical className="h-4 w-4" />
-                  <span>Menú</span>
+                  <MoreVertical className="h-5 w-5" />
                 </button>
 
                 {/* Dropdown menu */}
                 {isActionsMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                  <div className="absolute right-0 mt-2 w-44 bg-white rounded-md shadow-md border border-gray-200 z-50">
                     <div className="py-1">
                       {/* Exportar PDF */}
                       <button
@@ -2559,30 +2559,10 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
                           handleExportToPDF()
                           setIsActionsMenuOpen(false)
                         }}
-                        className="w-full px-4 py-2.5 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                        className="w-full px-3 py-2 text-left hover:bg-gray-50 flex items-center space-x-2 text-sm"
                       >
                         <Download className="h-4 w-4 text-gray-600" />
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">Exportar PDF</div>
-                          <div className="text-xs text-gray-500">Descargar en PDF</div>
-                        </div>
-                      </button>
-
-                      <div className="border-t border-gray-100 my-1"></div>
-
-                      {/* Nuevo Horario */}
-                      <button
-                        onClick={() => {
-                          handleCreateNextSchedule()
-                          setIsActionsMenuOpen(false)
-                        }}
-                        className="w-full px-4 py-2.5 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
-                      >
-                        <Plus className="h-4 w-4 text-gray-600" />
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">Nuevo Horario</div>
-                          <div className="text-xs text-gray-500">Crear siguiente quincena</div>
-                        </div>
+                        <span className="text-gray-700">Exportar PDF</span>
                       </button>
 
                       <div className="border-t border-gray-100 my-1"></div>
@@ -2593,13 +2573,10 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
                           handleExportToCSV()
                           setIsActionsMenuOpen(false)
                         }}
-                        className="w-full px-4 py-2.5 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                        className="w-full px-3 py-2 text-left hover:bg-gray-50 flex items-center space-x-2 text-sm"
                       >
                         <FileSpreadsheet className="h-4 w-4 text-gray-600" />
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">Exportar CSV</div>
-                          <div className="text-xs text-gray-500">Descargar para Excel</div>
-                        </div>
+                        <span className="text-gray-700">Exportar CSV</span>
                       </button>
 
                       {/* Importar CSV */}
@@ -2608,13 +2585,10 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
                           csvFileInputRef.current?.click()
                           setIsActionsMenuOpen(false)
                         }}
-                        className="w-full px-4 py-2.5 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                        className="w-full px-3 py-2 text-left hover:bg-gray-50 flex items-center space-x-2 text-sm"
                       >
                         <Upload className="h-4 w-4 text-gray-600" />
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">Importar CSV</div>
-                          <div className="text-xs text-gray-500">Cargar desde Excel</div>
-                        </div>
+                        <span className="text-gray-700">Importar CSV</span>
                       </button>
 
                       <input
