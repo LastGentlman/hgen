@@ -9,17 +9,17 @@ import SyncIndicator from '@/components/SyncIndicator'
 
 // Lazy load tab components for better performance
 const EmployeeManager = dynamic(() => import('@/components/EmployeeManager'), {
-  loading: () => <div className="flex items-center justify-center py-12"><div className="animate-pulse text-gray-500">Loading...</div></div>,
+  loading: () => <div className="flex items-center justify-center py-12"><div className="animate-pulse text-gray-500">Cargando...</div></div>,
   ssr: false
 })
 
 const HistoryManager = dynamic(() => import('@/components/HistoryManager'), {
-  loading: () => <div className="flex items-center justify-center py-12"><div className="animate-pulse text-gray-500">Loading...</div></div>,
+  loading: () => <div className="flex items-center justify-center py-12"><div className="animate-pulse text-gray-500">Cargando...</div></div>,
   ssr: false
 })
 
 const GridView = dynamic(() => import('@/components/GridView'), {
-  loading: () => <div className="flex items-center justify-center py-12"><div className="animate-pulse text-gray-500">Loading...</div></div>,
+  loading: () => <div className="flex items-center justify-center py-12"><div className="animate-pulse text-gray-500">Cargando...</div></div>,
   ssr: false
 })
 
@@ -146,9 +146,9 @@ export default function Home() {
   }
 
   const tabs = [
-    { id: 'employees' as const, label: 'Employees', icon: Users },
-    { id: 'history' as const, label: 'History', icon: History },
-    { id: 'grid' as const, label: 'Schedule Grid', icon: Grid3x3 }
+    { id: 'employees' as const, label: 'Empleados', icon: Users },
+    { id: 'history' as const, label: 'Historial', icon: History },
+    { id: 'grid' as const, label: 'Cuadrícula', icon: Grid3x3 }
   ]
 
   return (
@@ -162,7 +162,7 @@ export default function Home() {
                 <Calendar className="h-8 w-8 text-primary-600" />
                 <h1 className="text-2xl font-bold text-gray-900">HGen</h1>
               </div>
-              <span className="text-sm text-gray-500">Work Schedule Generator</span>
+              <span className="text-sm text-gray-500">Generador de Horarios de Trabajo</span>
             </div>
             <div className="flex items-center space-x-4">
               {/* Context selectors driving the main flow */}
@@ -193,14 +193,14 @@ export default function Home() {
 
               {/* Summary */}
               <span className="text-sm text-gray-600 hidden md:inline">
-                {employees.length} employees • {schedules.length} schedules
+                {employees.length} empleados • {schedules.length} horarios
               </span>
 
               {/* Hamburger for secondary actions */}
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className="md:hidden p-2 rounded hover:bg-gray-100"
-                aria-label="Open menu"
+                aria-label="Abrir menú"
               >
                 <Menu className="h-6 w-6 text-gray-700" />
               </button>
@@ -268,7 +268,7 @@ export default function Home() {
                   }`}
                 >
                   <Grid3x3 className="h-4 w-4" />
-                  <span>Grid</span>
+                  <span>Cuadrícula</span>
                 </button>
               </div>
             </div>
