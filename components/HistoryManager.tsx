@@ -6,6 +6,7 @@ import { storage } from '@/lib/storage'
 import { parseLocalDate } from '@/lib/utils'
 import { exportAllSchedulesToCSV } from '@/lib/exportUtils'
 import { History, Eye, Trash2, Calendar, ChevronDown, ChevronUp, AlertTriangle, Download } from 'lucide-react'
+import SchedulePreviewSVG from './SchedulePreviewSVG'
 import { showDangerConfirm, showError } from '@/lib/sweetalert'
 
 interface HistoryManagerProps {
@@ -21,6 +22,7 @@ interface HistoryManagerProps {
 export default function HistoryManager({ onScheduleSelect, activeScheduleId, branchCode, division, onUpdate, onGoToGrid }: HistoryManagerProps) {
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [isExpanded, setIsExpanded] = useState(true)
+  const [openPreviewId, setOpenPreviewId] = useState<string | null>(null)
 
   useEffect(() => {
     loadSchedules()
@@ -183,7 +185,13 @@ export default function HistoryManager({ onScheduleSelect, activeScheduleId, bra
                   return (
                     <div
                       key={schedule.id}
-                      onClick={() => onScheduleSelect(schedule)}
+                      onClick={() => {
+                        onScheduleSelect(schedule)
+                        // Close any open preview when selecting a different card
+                        if (openPreviewId && openPreviewId !== schedule.id) {
+                          setOpenPreviewId(null)
+                        }
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           onScheduleSelect(schedule)
@@ -240,10 +248,11 @@ export default function HistoryManager({ onScheduleSelect, activeScheduleId, bra
                               onClick={(e) => {
                                 e.stopPropagation()
                                 onScheduleSelect(schedule)
-                                if (onGoToGrid) onGoToGrid()
+                                setOpenPreviewId(prev => (prev === schedule.id ? null : schedule.id))
                               }}
-                              className="p-2 rounded transition-colors text-primary-600 bg-primary-100"
-                              title="Ver horario"
+                              aria-expanded={openPreviewId === schedule.id}
+                              className={`p-2 rounded transition-colors ${openPreviewId === schedule.id ? 'text-white bg-primary-600' : 'text-primary-600 bg-primary-100'}`}
+                              title={openPreviewId === schedule.id ? 'Ocultar vista previa' : 'Mostrar vista previa'}
                             >
                               <Eye className="h-5 w-5" />
                             </button>
@@ -257,6 +266,21 @@ export default function HistoryManager({ onScheduleSelect, activeScheduleId, bra
                           </button>
                         </div>
                       </div>
+                      {isActive && openPreviewId === schedule.id && (
+                        <div
+                          className="mt-3 border-t pt-3"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onScheduleSelect(schedule)
+                            if (onGoToGrid) onGoToGrid()
+                          }}
+                        >
+                          <div className="text-xs text-gray-500 mb-2">Clic en la vista previa para abrir en Horario</div>
+                          <div className="cursor-pointer rounded hover:bg-gray-50 p-2">
+                            <SchedulePreviewSVG schedule={schedule} height={120} />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )
                 })}
