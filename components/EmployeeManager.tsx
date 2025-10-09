@@ -5,7 +5,7 @@ import { Employee, BranchCode, Division } from '@/types'
 import { storage } from '@/lib/storage'
 import { generateId } from '@/lib/utils'
 import { Plus, Edit2, Trash2, Save, X, Users, Upload, ChevronDown, ChevronUp } from 'lucide-react'
-import { showDangerConfirm, showSuccess, showError } from '@/lib/sweetalert'
+import { showDangerConfirm, showSuccess, showError, showLoading, closeAlert } from '@/lib/sweetalert'
 
 interface EmployeeManagerProps {
   onUpdate: () => void
@@ -73,28 +73,37 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
   const handleSave = async () => {
     if (!formData.name?.trim()) return
 
-    const employeeData: Employee = {
-      id: editingId || generateId(),
-      name: formData.name.trim(),
-      phone: formData.phone?.trim(),
-      availableDays: [...defaultDays],
-      assignedShift: (formData.assignedShift as any) || 'unassigned',
-      branchCode: (formData.branchCode as BranchCode) || selectedBranchCode,
-      division: (formData.division as Division) || selectedDivision
-    }
+    try {
+      showLoading('Guardando empleado...')
+      const employeeData: Employee = {
+        id: editingId || generateId(),
+        name: formData.name.trim(),
+        phone: formData.phone?.trim(),
+        availableDays: [...defaultDays],
+        assignedShift: (formData.assignedShift as any) || 'unassigned',
+        branchCode: (formData.branchCode as BranchCode) || selectedBranchCode,
+        division: (formData.division as Division) || selectedDivision
+      }
 
-    if (editingId) {
-      await storage.updateEmployee(editingId, employeeData)
-    } else {
-      await storage.addEmployee(employeeData)
-    }
+      if (editingId) {
+        await storage.updateEmployee(editingId, employeeData)
+      } else {
+        await storage.addEmployee(employeeData)
+      }
 
-    const employees = await storage.getEmployees()
-    setEmployees(employees)
-    setIsAdding(false)
-    setEditingId(null)
-    setFormData({})
-    onUpdate()
+      const employees = await storage.getEmployees()
+      setEmployees(employees)
+      setIsAdding(false)
+      setEditingId(null)
+      setFormData({})
+      onUpdate()
+      closeAlert()
+      showSuccess('Empleado guardado correctamente.')
+    } catch (error) {
+      console.error(error)
+      closeAlert()
+      showError('No se pudo guardar el empleado. Intenta de nuevo.')
+    }
   }
 
   const handleCancel = () => {

@@ -7,7 +7,7 @@ import { formatTime, calculateShiftDuration } from '@/lib/utils'
 import { User, Clock, Download, FileText } from 'lucide-react'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
-import { showError } from '@/lib/sweetalert'
+import { showError, showLoading, closeAlert, showSuccess } from '@/lib/sweetalert'
 
 interface ScheduleViewProps {
   schedule: Schedule | null
@@ -104,6 +104,7 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
     if (!schedule || !scheduleRef.current) return
 
     try {
+      showLoading('Generando PDF...')
       const canvas = await html2canvas(scheduleRef.current, {
         scale: 2,
         useCORS: true,
@@ -135,8 +136,11 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
       }
 
       pdf.save(`${schedule.name}.pdf`)
+      closeAlert()
+      showSuccess('PDF generado correctamente.')
     } catch (error) {
       console.error('Error generating PDF:', error)
+      closeAlert()
       showError('Error al generar el PDF. Por favor intenta de nuevo.')
     }
   }
