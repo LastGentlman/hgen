@@ -2538,6 +2538,15 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
             <h2 className="text-2xl font-bold text-gray-900">Horario</h2>
 
             <div className="flex items-center gap-3">
+              {/* Botón Nuevo horario (a la izquierda del menú) */}
+              <button
+                onClick={handleCreateNextSchedule}
+                className="btn btn-primary inline-flex items-center space-x-2 interactive"
+              >
+                <Plus className="h-5 w-5" />
+                <span>Nuevo horario</span>
+              </button>
+
               {/* Menú desplegable */}
               <div className="relative" ref={actionsMenuRef}>
                 <button
