@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { Schedule, ShiftStatus } from '@/types'
+import { STATUS_PALETTE } from '@/lib/statusStyles'
 
 interface SchedulePreviewSVGProps {
   schedule: Schedule
@@ -9,16 +10,8 @@ interface SchedulePreviewSVGProps {
   height?: number
 }
 
-// Compact color mapping for preview cells
-const STATUS_COLORS: Record<ShiftStatus, { fill: string; stroke: string }> = {
-  assigned: { fill: '#E0F2FE', stroke: '#60A5FA' }, // light blue
-  rest: { fill: '#FDE68A', stroke: '#D97706' }, // amber
-  vacation: { fill: '#E5E7EB', stroke: '#111827' }, // gray/black
-  sick: { fill: '#FECACA', stroke: '#DC2626' }, // red
-  absent: { fill: '#FED7AA', stroke: '#EA580C' }, // orange
-  covering: { fill: '#FFE6C2', stroke: '#FB923C' }, // light orange
-  empty: { fill: '#FFFFFF', stroke: '#D1D5DB' } // white/gray
-}
+// Use the same palette as the grid styles
+const STATUS_COLORS: Record<ShiftStatus, { fill: string; stroke: string }> = STATUS_PALETTE
 
 /**
  * Renders a tiny SVG grid preview of the schedule: columns are days, rows are 3 shifts.
@@ -29,12 +22,12 @@ export default function SchedulePreviewSVG({ schedule, className, height = 140 }
   const rows = 3 // morning, afternoon, night
 
   // Layout constants (SVG user units)
-  const topPadding = 20
-  const leftPadding = 28
+  const topPadding = 24
+  const leftPadding = 36
   const rightPadding = 8
   const bottomPadding = 8
-  const colWidth = 18
-  const rowHeight = 28
+  const colWidth = 22
+  const rowHeight = 30
   const gridWidth = numDays * colWidth
   const gridHeight = rows * rowHeight
   const totalWidth = leftPadding + gridWidth + rightPadding
@@ -68,7 +61,7 @@ export default function SchedulePreviewSVG({ schedule, className, height = 140 }
     >
       {/* Title row with start-end dates */}
       <text x={leftPadding} y={14} fontSize={10} fill="#374151">
-        {new Date(schedule.startDate).toLocaleDateString('es-MX')} – {new Date(schedule.endDate).toLocaleDateString('es-MX')}
+        {new Date(schedule.startDate).toLocaleDateString('es-ES')} – {new Date(schedule.endDate).toLocaleDateString('es-ES')}
       </text>
 
       {/* Column day labels */}
@@ -85,11 +78,11 @@ export default function SchedulePreviewSVG({ schedule, className, height = 140 }
         </text>
       ))}
 
-      {/* Row labels: T1/T2/T3 */}
+      {/* Row labels: T1/T2/T3 (turnos) */}
       {[0, 1, 2].map((row) => (
         <text
           key={`row-label-${row}`}
-          x={leftPadding - 8}
+          x={leftPadding - 10}
           y={topPadding + row * rowHeight + rowHeight / 2 + 3}
           textAnchor="end"
           fontSize={9}
@@ -113,13 +106,13 @@ export default function SchedulePreviewSVG({ schedule, className, height = 140 }
                 key={`cell-${row}-${col}`}
                 x={x}
                 y={y}
-                width={colWidth - 2}
-                height={rowHeight - 6}
+                width={colWidth - 4}
+                height={rowHeight - 8}
                 fill={fill}
                 stroke={stroke}
                 strokeWidth={0.75}
-                rx={3}
-                ry={3}
+                rx={4}
+                ry={4}
               />
             )
           })}

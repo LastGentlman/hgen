@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { Employee, Schedule, Shift, ShiftStatus } from '@/types'
+import { STATUS_CONFIG } from '@/lib/statusStyles'
 import { storage } from '@/lib/storage'
 import { formatTime, calculateShiftDuration } from '@/lib/utils'
 import { User, Clock, Download, FileText } from 'lucide-react'
@@ -17,15 +18,7 @@ interface ScheduleViewProps {
   onUpdate: () => void
 }
 
-const STATUS_CONFIG = {
-  assigned: { label: 'Asignado', bg: 'bg-white', text: 'text-gray-900', border: 'border-gray-300' },
-  rest: { label: 'DESC', bg: 'bg-amber-700', text: 'text-white', border: 'border-amber-800' },
-  vacation: { label: 'VAC', bg: 'bg-blue-600', text: 'text-white', border: 'border-blue-700' },
-  sick: { label: 'ENF', bg: 'bg-red-600', text: 'text-white', border: 'border-red-700' },
-  absent: { label: 'AUS', bg: 'bg-orange-600', text: 'text-white', border: 'border-orange-700' },
-  covering: { label: 'COB', bg: 'bg-orange-400', text: 'text-white', border: 'border-orange-500' },
-  empty: { label: 'Vacío', bg: 'bg-gray-50', text: 'text-gray-400', border: 'border-gray-200' }
-}
+// STATUS_CONFIG is now shared from lib/statusStyles
 
 export default function ScheduleView({ schedule, employees, schedules, onScheduleSelect, onUpdate }: ScheduleViewProps) {
   const [selectedScheduleId, setSelectedScheduleId] = useState(schedule?.id || '')
