@@ -181,7 +181,15 @@ export default function HistoryManager({ onScheduleSelect, activeScheduleId, bra
                   return (
                     <div
                       key={schedule.id}
-                      className={`card hover:shadow-md transition-all ${
+                      onClick={() => onScheduleSelect(schedule)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          onScheduleSelect(schedule)
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      className={`card hover:shadow-md transition-all cursor-pointer ${
                         isActive ? 'ring-2 ring-primary-500 bg-primary-50' : ''
                       }`}
                     >
@@ -226,7 +234,7 @@ export default function HistoryManager({ onScheduleSelect, activeScheduleId, bra
 
                         <div className="flex items-center space-x-1 ml-4">
                           <button
-                            onClick={() => onScheduleSelect(schedule)}
+                            onClick={(e) => { e.stopPropagation(); onScheduleSelect(schedule) }}
                             className={`p-2 rounded transition-colors ${
                               isActive
                                 ? 'text-primary-600 bg-primary-100'
@@ -237,7 +245,7 @@ export default function HistoryManager({ onScheduleSelect, activeScheduleId, bra
                             <Eye className="h-5 w-5" />
                           </button>
                           <button
-                            onClick={() => handleDelete(schedule.id)}
+                            onClick={(e) => { e.stopPropagation(); handleDelete(schedule.id) }}
                             className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                             title="Eliminar horario"
                           >

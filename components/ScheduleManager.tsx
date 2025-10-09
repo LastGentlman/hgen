@@ -204,7 +204,14 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
           )
 
           return (
-            <div key={schedule.id} className="card">
+            <div
+              key={schedule.id}
+              onClick={() => handleView(schedule)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleView(schedule) }}
+              role="button"
+              tabIndex={0}
+              className="card cursor-pointer"
+            >
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <h3 className="font-medium text-gray-900">{schedule.name}</h3>
@@ -214,14 +221,14 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
                 </div>
                 <div className="flex items-center space-x-1">
                   <button
-                    onClick={() => handleView(schedule)}
+                    onClick={(e) => { e.stopPropagation(); handleView(schedule) }}
                     className="p-1 text-gray-400 hover:text-primary-600 transition-colors"
                     title="Ver horario"
                   >
                     <Eye className="h-4 w-4" />
                   </button>
                   <button
-                    onClick={() => handleDelete(schedule.id)}
+                    onClick={(e) => { e.stopPropagation(); handleDelete(schedule.id) }}
                     className="p-1 text-gray-400 hover:text-red-600 transition-colors"
                     title="Eliminar horario"
                   >
@@ -251,7 +258,7 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
               </div>
 
               <button
-                onClick={() => handleView(schedule)}
+                onClick={(e) => { e.stopPropagation(); handleView(schedule) }}
                 className="w-full mt-4 btn btn-secondary text-sm"
               >
                 Ver y editar horario
