@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { Employee, Schedule, BranchCode, Division } from '@/types'
 import { storage } from '@/lib/storage'
 import { Calendar, Users, Grid3x3, History, Menu } from 'lucide-react'
+import Breadcrumbs from '@/components/Breadcrumbs'
 import SyncIndicator from '@/components/SyncIndicator'
 
 // Lazy load tab components for better performance
@@ -165,36 +166,40 @@ export default function Home() {
               <span className="text-sm text-gray-500">Generador de Horarios de Trabajo</span>
             </div>
             <div className="flex items-center space-x-4">
-              {/* Context selectors driving the main flow */}
-              <div className="hidden md:flex items-center space-x-2">
-                <label className="text-sm text-gray-600">Sucursal</label>
-                <select
-                  value={branchCode}
-                  onChange={(e) => setBranchCode(e.target.value as BranchCode)}
-                  className="input h-8 py-0 text-sm"
-                >
-                  {(['001','002','003'] as BranchCode[]).map(b => (
-                    <option key={b} value={b}>{b}</option>
-                  ))}
-                </select>
-                <label className="text-sm text-gray-600">División</label>
-                <select
-                  value={division}
-                  onChange={(e) => setDivision(e.target.value as Division)}
-                  className="input h-8 py-0 text-sm"
-                >
-                  {(['super','gasolinera','restaurant','limpieza'] as Division[])
-                    .filter(d => !(d === 'restaurant' && branchCode === '002'))
-                    .map(d => (
-                      <option key={d} value={d}>{d}</option>
+              {/* Context selectors driving the main flow (only show when relevant) */}
+              {(activeTab !== 'employees' || employees.length > 0 || schedules.length > 0) && (
+                <div className="hidden md:flex items-center space-x-2">
+                  <label className="text-sm text-gray-600">Sucursal</label>
+                  <select
+                    value={branchCode}
+                    onChange={(e) => setBranchCode(e.target.value as BranchCode)}
+                    className="input h-8 py-0 text-sm"
+                  >
+                    {(['001','002','003'] as BranchCode[]).map(b => (
+                      <option key={b} value={b}>{b}</option>
                     ))}
-                </select>
-              </div>
+                  </select>
+                  <label className="text-sm text-gray-600">División</label>
+                  <select
+                    value={division}
+                    onChange={(e) => setDivision(e.target.value as Division)}
+                    className="input h-8 py-0 text-sm"
+                  >
+                    {(['super','gasolinera','restaurant','limpieza'] as Division[])
+                      .filter(d => !(d === 'restaurant' && branchCode === '002'))
+                      .map(d => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                  </select>
+                </div>
+              )}
 
               {/* Summary */}
-              <span className="text-sm text-gray-600 hidden md:inline">
-                {employees.length} empleados • {schedules.length} horarios
-              </span>
+              {schedules.length > 0 && (
+                <span className="text-sm text-gray-600 hidden md:inline">
+                  {employees.length} empleados • {schedules.length} horarios
+                </span>
+              )}
 
               {/* Hamburger for secondary actions */}
               <button
@@ -208,6 +213,22 @@ export default function Home() {
           </div>
         </div>
       </header>
+
+      {/* Breadcrumbs */}
+      <div className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+          <Breadcrumbs
+            items={[
+              { label: 'Inicio', href: '/' },
+              activeTab === 'employees'
+                ? { label: 'Empleados' }
+                : activeTab === 'history'
+                ? { label: 'Historial' }
+                : { label: 'Cuadrícula' }
+            ]}
+          />
+        </div>
+      </div>
 
       {/* Mobile hamburger menu content */}
       {isMenuOpen && (

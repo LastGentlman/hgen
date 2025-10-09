@@ -5,6 +5,7 @@ import { Employee, Schedule, ShiftTemplate } from '@/types'
 import { storage } from '@/lib/storage'
 import { generateWeeklySchedule, getDefaultShiftTemplates } from '@/lib/utils'
 import { Plus, Calendar, Edit2, Trash2, Eye, ChevronDown, ChevronUp } from 'lucide-react'
+import { showLoading, closeAlert, showSuccess, showError } from '@/lib/sweetalert'
 import { showDangerConfirm } from '@/lib/sweetalert'
 
 interface ScheduleManagerProps {
@@ -43,15 +44,24 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
   const handleSave = async () => {
     if (!formData.name.trim() || !formData.startDate) return
 
-    const templates = getDefaultShiftTemplates()
-    const schedule = generateWeeklySchedule(formData.startDate, formData.name.trim(), templates)
+    try {
+      showLoading('Creando horario...', 'Generando turnos y guardando en tu dispositivo')
+      const templates = getDefaultShiftTemplates()
+      const schedule = generateWeeklySchedule(formData.startDate, formData.name.trim(), templates)
 
-    await storage.addSchedule(schedule)
-    const schedules = await storage.getSchedules()
-    setSchedules(schedules)
-    setIsCreating(false)
-    setFormData({ name: '', startDate: '' })
-    onUpdate()
+      await storage.addSchedule(schedule)
+      const schedules = await storage.getSchedules()
+      setSchedules(schedules)
+      setIsCreating(false)
+      setFormData({ name: '', startDate: '' })
+      onUpdate()
+      closeAlert()
+      showSuccess('El horario se creó correctamente.', '¡Horario creado!')
+    } catch (error) {
+      console.error(error)
+      closeAlert()
+      showError('No se pudo crear el horario. Intenta de nuevo.')
+    }
   }
 
   const handleCancel = () => {
@@ -255,14 +265,27 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
               <div className="text-center py-12">
                 <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">Aún no hay horarios</h3>
-                <p className="text-gray-600 mb-4">Crea tu primer horario para empezar a organizar los turnos.</p>
-                <button
-                  onClick={handleCreate}
-                  className="btn btn-primary"
-                  disabled={employees.length === 0}
-                >
-                  Crear primer horario
-                </button>
+                <p className="text-gray-600 mb-6">Crea tu primer horario para empezar a organizar los turnos.</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto">
+                  <div className="p-5 rounded-xl border-2 hover:shadow-md transition-all text-left">
+                    <div className="text-sm font-semibold text-primary-700 mb-1">Crear desde cero</div>
+                    <p className="text-sm text-gray-600 mb-3">Define turnos manualmente asignando empleados día por día.</p>
+                    <button onClick={handleCreate} className="btn btn-primary w-full" disabled={employees.length === 0}>Comenzar</button>
+                  </div>
+                  <div className="p-5 rounded-xl border-2 hover:shadow-md transition-all text-left">
+                    <div className="text-sm font-semibold text-gray-800 mb-1">Importar CSV</div>
+                    <p className="text-sm text-gray-600 mb-3">¿Ya tienes un horario? Súbelo y edítalo fácilmente.</p>
+                    <button
+                      onClick={() => document.getElementById('global-import-csv-trigger')?.dispatchEvent(new Event('click', { bubbles: true }))}
+                      className="btn btn-secondary w-full"
+                    >Importar</button>
+                  </div>
+                  <div className="p-5 rounded-xl border-2 hover:shadow-md transition-all text-left">
+                    <div className="text-sm font-semibold text-gray-800 mb-1">Usar plantilla</div>
+                    <p className="text-sm text-gray-600 mb-3">Duplica un horario anterior y ajústalo.</p>
+                    <button onClick={() => setIsExpanded(true)} className="btn w-full">Ver plantillas</button>
+                  </div>
+                </div>
               </div>
             )}
           </div>

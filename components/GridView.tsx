@@ -2464,14 +2464,14 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
           <div className="flex items-center justify-center gap-3">
             <button
               onClick={handleCreateNextSchedule}
-              className="btn btn-primary inline-flex items-center space-x-2"
+              className="btn btn-primary inline-flex items-center space-x-2 interactive"
             >
               <Plus className="h-5 w-5" />
               <span>Crear Nuevo Horario</span>
             </button>
             <button
               onClick={() => csvFileInputRef.current?.click()}
-              className="btn btn-secondary inline-flex items-center space-x-2"
+              className="btn btn-secondary inline-flex items-center space-x-2 interactive"
             >
               <Upload className="h-5 w-5" />
               <span>Importar CSV</span>
@@ -2485,6 +2485,8 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
               className="hidden"
             />
           </div>
+          {/* Hidden global trigger so other components can open the file input */}
+          <button id="global-import-csv-trigger" onClick={() => csvFileInputRef.current?.click()} className="hidden" aria-hidden="true" />
         </div>
       </div>
     )
