@@ -14,9 +14,11 @@ interface HistoryManagerProps {
   branchCode?: BranchCode
   division?: Division
   onUpdate?: () => void
+  // When provided, clicking the eye navigates to Grid view in parent
+  onGoToGrid?: () => void
 }
 
-export default function HistoryManager({ onScheduleSelect, activeScheduleId, branchCode, division, onUpdate }: HistoryManagerProps) {
+export default function HistoryManager({ onScheduleSelect, activeScheduleId, branchCode, division, onUpdate, onGoToGrid }: HistoryManagerProps) {
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [isExpanded, setIsExpanded] = useState(true)
 
@@ -233,17 +235,19 @@ export default function HistoryManager({ onScheduleSelect, activeScheduleId, bra
                         </div>
 
                         <div className="flex items-center space-x-1 ml-4">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); onScheduleSelect(schedule) }}
-                            className={`p-2 rounded transition-colors ${
-                              isActive
-                                ? 'text-primary-600 bg-primary-100'
-                                : 'text-gray-400 hover:text-primary-600 hover:bg-primary-50'
-                            }`}
-                            title="Ver horario"
-                          >
-                            <Eye className="h-5 w-5" />
-                          </button>
+                          {isActive && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onScheduleSelect(schedule)
+                                if (onGoToGrid) onGoToGrid()
+                              }}
+                              className="p-2 rounded transition-colors text-primary-600 bg-primary-100"
+                              title="Ver en cuadrícula"
+                            >
+                              <Eye className="h-5 w-5" />
+                            </button>
+                          )}
                           <button
                             onClick={(e) => { e.stopPropagation(); handleDelete(schedule.id) }}
                             className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"

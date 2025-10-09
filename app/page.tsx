@@ -335,6 +335,7 @@ export default function Home() {
             branchCode={branchCode}
             division={division}
             onUpdate={handleScheduleUpdate}
+            onGoToGrid={() => setActiveTab('grid')}
           />
         )}
 
