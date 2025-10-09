@@ -161,7 +161,7 @@ export default function HistoryManager({ onScheduleSelect, activeScheduleId, bra
                 </p>
                 <div className="flex items-center justify-center gap-3">
                   <button
-                    onClick={() => onScheduleSelect(null)}
+                    onClick={() => { onScheduleSelect(null); if (onGoToGrid) onGoToGrid() }}
                     className="btn btn-primary"
                   >
                     Crear horario
