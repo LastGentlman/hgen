@@ -2533,7 +2533,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
         {/* Header con acciones */}
         <div className="card">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-4">
-            <h2 className="text-2xl font-bold text-gray-900">Grid View</h2>
+            <h2 className="text-2xl font-bold text-gray-900">Vista de cuadrícula</h2>
 
             <div className="flex items-center gap-3">
               {/* Menú desplegable */}

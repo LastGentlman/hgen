@@ -107,8 +107,8 @@ export async function exportToPDF(
     pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight)
     pdf.save(filename)
   } catch (error) {
-    console.error('Error generating PDF:', error)
-    throw new Error('Error generating PDF. Please try again.')
+    console.error('Error al generar el PDF:', error)
+    throw new Error('Error al generar el PDF. Por favor intenta de nuevo.')
   }
 }
 
@@ -125,8 +125,8 @@ export function exportToJSON(data: any, filename: string): void {
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
   } catch (error) {
-    console.error('Error exporting JSON:', error)
-    throw new Error('Error exporting JSON. Please try again.')
+    console.error('Error al exportar JSON:', error)
+    throw new Error('Error al exportar JSON. Por favor intenta de nuevo.')
   }
 }
 
@@ -227,7 +227,7 @@ export function exportToCSV(
     console.log('[exportToCSV] ✓ File downloaded:', filename)
   } catch (error) {
     console.error('[exportToCSV] ❌ Error:', error)
-    throw new Error('Error exporting CSV. Please try again.')
+    throw new Error('Error al exportar CSV. Por favor intenta de nuevo.')
   }
 }
 
@@ -324,7 +324,7 @@ export function exportAllSchedulesToCSV(
     console.log('[exportAllSchedulesToCSV] ✓ File downloaded:', filename)
   } catch (error) {
     console.error('[exportAllSchedulesToCSV] ❌ Error:', error)
-    throw new Error('Error exporting CSV. Please try again.')
+    throw new Error('Error al exportar CSV. Por favor intenta de nuevo.')
   }
 }
 

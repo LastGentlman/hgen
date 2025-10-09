@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'HGen - Work Schedule Generator',
-  description: 'Generate and manage employee work schedules with ease',
+  title: 'HGen - Generador de Horarios de Trabajo',
+  description: 'Genera y gestiona horarios de trabajo fácilmente',
 }
 
 export default function RootLayout({
@@ -12,7 +12,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="es">
       <body className="bg-gray-50 min-h-screen">
         <div className="min-h-screen">
           {children}

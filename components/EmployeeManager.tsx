@@ -180,12 +180,12 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
           <div className="flex items-center space-x-3">
             <Users className="h-6 w-6 text-primary-600" />
             <div className="text-left">
-              <h2 className="text-xl font-bold text-gray-900">Employee Management</h2>
+              <h2 className="text-xl font-bold text-gray-900">Gestión de Empleados</h2>
               <p className="text-sm text-gray-600">
                 {employees.filter(emp =>
                   (!emp.branchCode || emp.branchCode === selectedBranchCode) &&
                   (!emp.division || emp.division === selectedDivision)
-                ).length} employees
+                ).length} empleados
               </p>
             </div>
           </div>
@@ -201,7 +201,7 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
             <div className="flex items-center justify-end space-x-2">
               <label className="btn btn-secondary flex items-center space-x-2 cursor-pointer">
                 <Upload className="h-5 w-5" />
-                <span>Import JSON</span>
+                <span>Importar JSON</span>
                 <input
                   type="file"
                   accept=".json"
@@ -215,39 +215,39 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
                 disabled={isAdding || editingId !== null}
               >
                 <Plus className="h-5 w-5" />
-                <span>Add Employee</span>
+                <span>Agregar empleado</span>
               </button>
             </div>
 
       {/* Add Form - Only at top when adding */}
       {isAdding && (
         <div className="card">
-          <h3 className="text-lg font-medium mb-4">Add New Employee</h3>
+          <h3 className="text-lg font-medium mb-4">Agregar nuevo empleado</h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Name *
+                Nombre *
               </label>
               <input
                 type="text"
                 value={formData.name || ''}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="input"
-                placeholder="Enter employee name"
+                placeholder="Ingresa el nombre del empleado"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Phone
+                Teléfono
               </label>
               <input
                 type="tel"
                 value={formData.phone || ''}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 className="input"
-                placeholder="Enter phone number"
+                placeholder="Ingresa el número de teléfono"
               />
             </div>
 
@@ -279,7 +279,7 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Assigned Shift
+                Turno asignado
               </label>
               <select
                 value={(formData.assignedShift as any) || 'unassigned'}
@@ -304,14 +304,14 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
               disabled={!formData.name?.trim()}
             >
               <Save className="h-4 w-4" />
-              <span>Save</span>
+              <span>Guardar</span>
             </button>
             <button
               onClick={handleCancel}
               className="btn btn-secondary flex items-center space-x-2"
             >
               <X className="h-4 w-4" />
-              <span>Cancel</span>
+              <span>Cancelar</span>
             </button>
           </div>
         </div>
@@ -371,32 +371,32 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
             {/* Edit Form - Appears below the employee card */}
             {editingId === employee.id && (
               <div className="card mt-2 bg-blue-50 border-blue-200">
-                <h3 className="text-lg font-medium mb-4">Edit Employee</h3>
+                <h3 className="text-lg font-medium mb-4">Editar empleado</h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Name *
+                      Nombre *
                     </label>
                     <input
                       type="text"
                       value={formData.name || ''}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       className="input"
-                      placeholder="Enter employee name"
+                      placeholder="Ingresa el nombre del empleado"
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Phone
+                      Teléfono
                     </label>
                     <input
                       type="tel"
                       value={formData.phone || ''}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                       className="input"
-                      placeholder="Enter phone number"
+                      placeholder="Ingresa el número de teléfono"
                     />
                   </div>
 
@@ -428,7 +428,7 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Assigned Shift
+                      Turno asignado
                     </label>
                     <select
                       value={(formData.assignedShift as any) || 'unassigned'}
@@ -453,14 +453,14 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
                     disabled={!formData.name?.trim()}
                   >
                     <Save className="h-4 w-4" />
-                    <span>Save</span>
+                    <span>Guardar</span>
                   </button>
                   <button
                     onClick={handleCancel}
                     className="btn btn-secondary flex items-center space-x-2"
                   >
                     <X className="h-4 w-4" />
-                    <span>Cancel</span>
+                    <span>Cancelar</span>
                   </button>
                 </div>
               </div>
@@ -472,10 +472,10 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
             {employees.length === 0 && !isAdding && (
               <div className="text-center py-12">
                 <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No employees yet</h3>
-                <p className="text-gray-600 mb-4">Add your first employee to get started with scheduling.</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Aún no hay empleados</h3>
+                <p className="text-gray-600 mb-4">Agrega tu primer empleado para comenzar con la programación.</p>
                 <button onClick={handleAdd} className="btn btn-primary">
-                  Add First Employee
+                  Agregar primer empleado
                 </button>
               </div>
             )}

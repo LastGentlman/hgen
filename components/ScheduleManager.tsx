@@ -35,7 +35,7 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
     const today = new Date()
 
     setFormData({
-      name: `15-Day Schedule - ${today.toLocaleDateString()}`,
+      name: `Horario de 15 días - ${today.toLocaleDateString('es-ES')}`,
       startDate: today.toISOString().split('T')[0]
     })
   }
@@ -88,8 +88,8 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
           <div className="flex items-center space-x-3">
             <Calendar className="h-6 w-6 text-primary-600" />
             <div className="text-left">
-              <h2 className="text-xl font-bold text-gray-900">Schedule Management</h2>
-              <p className="text-sm text-gray-600">{schedules.length} schedules</p>
+              <h2 className="text-xl font-bold text-gray-900">Gestión de Horarios</h2>
+              <p className="text-sm text-gray-600">{schedules.length} horarios</p>
             </div>
           </div>
           {isExpanded ? (
@@ -108,7 +108,7 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
                 disabled={isCreating}
               >
                 <Plus className="h-5 w-5" />
-                <span>Create Schedule</span>
+                <span>Crear horario</span>
               </button>
             </div>
 
@@ -117,8 +117,8 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
                 <div className="flex items-center space-x-3">
                   <div className="text-yellow-600">⚠️</div>
                   <div>
-                    <h3 className="font-medium text-yellow-800">No employees added</h3>
-                    <p className="text-yellow-700">You need to add employees before creating schedules.</p>
+                    <h3 className="font-medium text-yellow-800">No hay empleados</h3>
+                    <p className="text-yellow-700">Debes agregar empleados antes de crear horarios.</p>
                   </div>
                 </div>
               </div>
@@ -127,25 +127,25 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
       {/* Create Form */}
       {isCreating && (
         <div className="card">
-          <h3 className="text-lg font-medium mb-4">Create New Schedule</h3>
+          <h3 className="text-lg font-medium mb-4">Crear nuevo horario</h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Schedule Name *
+                Nombre del horario *
               </label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="input"
-                placeholder="Enter schedule name"
+                placeholder="Ingresa el nombre del horario"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Start Date *
+                Fecha de inicio *
               </label>
               <input
                 type="date"
@@ -157,15 +157,15 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
           </div>
 
           <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-            <h4 className="font-medium text-gray-900 mb-2">Default Schedule Template (15-Day Cycle)</h4>
+            <h4 className="font-medium text-gray-900 mb-2">Plantilla de horario por defecto (ciclo de 15 días)</h4>
             <div className="text-sm text-gray-600 space-y-1">
-              <p><strong>24/7 Operation:</strong> 3 shifts per day, every day</p>
-              <p><strong>Morning Shift:</strong> 6:00 AM - 2:00 PM</p>
-              <p><strong>Afternoon Shift:</strong> 2:00 PM - 10:00 PM</p>
-              <p><strong>Night Shift:</strong> 10:00 PM - 6:00 AM</p>
+              <p><strong>Operación 24/7:</strong> 3 turnos por día, todos los días</p>
+              <p><strong>Turno Mañana:</strong> 6:00 AM - 2:00 PM</p>
+              <p><strong>Turno Tarde:</strong> 2:00 PM - 10:00 PM</p>
+              <p><strong>Turno Noche:</strong> 10:00 PM - 6:00 AM</p>
             </div>
             <p className="text-xs text-gray-500 mt-2">
-              Schedule runs for 15 consecutive days. You can customize shifts after creating the schedule.
+              El horario dura 15 días consecutivos. Puedes personalizar los turnos después de crear el horario.
             </p>
           </div>
 
@@ -175,10 +175,10 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
               className="btn btn-primary"
               disabled={!formData.name.trim() || !formData.startDate}
             >
-              Create Schedule
+              Crear horario
             </button>
             <button onClick={handleCancel} className="btn btn-secondary">
-              Cancel
+              Cancelar
             </button>
           </div>
         </div>
@@ -206,14 +206,14 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
                   <button
                     onClick={() => handleView(schedule)}
                     className="p-1 text-gray-400 hover:text-primary-600 transition-colors"
-                    title="View Schedule"
+                    title="Ver horario"
                   >
                     <Eye className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(schedule.id)}
                     className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                    title="Delete Schedule"
+                    title="Eliminar horario"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -222,9 +222,9 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Progress:</span>
+                  <span className="text-gray-600">Progreso:</span>
                   <span className="font-medium">
-                    {assignedShifts}/{totalShifts} shifts assigned
+                    {assignedShifts}/{totalShifts} turnos asignados
                   </span>
                 </div>
 
@@ -236,7 +236,7 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
                 </div>
 
                 <div className="text-xs text-gray-500">
-                  Created: {new Date(schedule.createdAt).toLocaleDateString()}
+                  Creado: {new Date(schedule.createdAt).toLocaleDateString('es-ES')}
                 </div>
               </div>
 
@@ -244,7 +244,7 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
                 onClick={() => handleView(schedule)}
                 className="w-full mt-4 btn btn-secondary text-sm"
               >
-                View & Edit Schedule
+                Ver y editar horario
               </button>
             </div>
           )
@@ -254,14 +254,14 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
             {schedules.length === 0 && !isCreating && (
               <div className="text-center py-12">
                 <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No schedules yet</h3>
-                <p className="text-gray-600 mb-4">Create your first schedule to start organizing work shifts.</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Aún no hay horarios</h3>
+                <p className="text-gray-600 mb-4">Crea tu primer horario para empezar a organizar los turnos.</p>
                 <button
                   onClick={handleCreate}
                   className="btn btn-primary"
                   disabled={employees.length === 0}
                 >
-                  Create First Schedule
+                  Crear primer horario
                 </button>
               </div>
             )}

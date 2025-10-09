@@ -18,13 +18,13 @@ interface ScheduleViewProps {
 }
 
 const STATUS_CONFIG = {
-  assigned: { label: 'Assigned', bg: 'bg-white', text: 'text-gray-900', border: 'border-gray-300' },
-  rest: { label: 'REST', bg: 'bg-amber-700', text: 'text-white', border: 'border-amber-800' },
+  assigned: { label: 'Asignado', bg: 'bg-white', text: 'text-gray-900', border: 'border-gray-300' },
+  rest: { label: 'DESC', bg: 'bg-amber-700', text: 'text-white', border: 'border-amber-800' },
   vacation: { label: 'VAC', bg: 'bg-blue-600', text: 'text-white', border: 'border-blue-700' },
-  sick: { label: 'SICK', bg: 'bg-red-600', text: 'text-white', border: 'border-red-700' },
-  absent: { label: 'ABS', bg: 'bg-orange-600', text: 'text-white', border: 'border-orange-700' },
-  covering: { label: 'COVER', bg: 'bg-orange-400', text: 'text-white', border: 'border-orange-500' },
-  empty: { label: 'Empty', bg: 'bg-gray-50', text: 'text-gray-400', border: 'border-gray-200' }
+  sick: { label: 'ENF', bg: 'bg-red-600', text: 'text-white', border: 'border-red-700' },
+  absent: { label: 'AUS', bg: 'bg-orange-600', text: 'text-white', border: 'border-orange-700' },
+  covering: { label: 'COB', bg: 'bg-orange-400', text: 'text-white', border: 'border-orange-500' },
+  empty: { label: 'Vacío', bg: 'bg-gray-50', text: 'text-gray-400', border: 'border-gray-200' }
 }
 
 export default function ScheduleView({ schedule, employees, schedules, onScheduleSelect, onUpdate }: ScheduleViewProps) {
@@ -144,23 +144,23 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
   if (!schedule) {
     return (
       <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-gray-900">Schedule View</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Vista de horario</h2>
 
         {schedules.length === 0 ? (
           <div className="card text-center py-12">
             <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No schedules available</h3>
-            <p className="text-gray-600">Create a schedule first to view it here.</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No hay horarios disponibles</h3>
+            <p className="text-gray-600">Crea un horario primero para verlo aquí.</p>
           </div>
         ) : (
           <div className="card">
-            <h3 className="text-lg font-medium mb-4">Select a Schedule</h3>
+            <h3 className="text-lg font-medium mb-4">Selecciona un horario</h3>
             <select
               value={selectedScheduleId}
               onChange={(e) => handleScheduleChange(e.target.value)}
               className="input"
             >
-              <option value="">Choose a schedule...</option>
+              <option value="">Elige un horario...</option>
               {schedules.map(sch => (
                 <option key={sch.id} value={sch.id}>
                   {sch.name} ({new Date(sch.startDate).toLocaleDateString()})
@@ -191,9 +191,9 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
 
         <div className="flex items-center space-x-3">
           <div className="text-right text-sm">
-            <div className="font-medium">{assignedShifts}/{totalShifts} assigned</div>
+            <div className="font-medium">{assignedShifts}/{totalShifts} asignados</div>
             <div className="text-gray-500">
-              {totalShifts > 0 ? Math.round((assignedShifts / totalShifts) * 100) : 0}% complete
+              {totalShifts > 0 ? Math.round((assignedShifts / totalShifts) * 100) : 0}% completo
             </div>
           </div>
           <button
@@ -201,7 +201,7 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
             className="btn btn-primary flex items-center space-x-2"
           >
             <Download className="h-4 w-4" />
-            <span>Export PDF</span>
+            <span>Exportar PDF</span>
           </button>
         </div>
       </div>
@@ -209,7 +209,7 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
       {schedules.length > 1 && (
         <div className="card">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Switch Schedule
+            Cambiar horario
           </label>
           <select
             value={schedule.id}
@@ -228,8 +228,8 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
       {/* Progress Bar */}
       <div className="card">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-gray-700">Assignment Progress</span>
-          <span className="text-sm text-gray-600">{assignedShifts} of {totalShifts} shifts</span>
+          <span className="text-sm font-medium text-gray-700">Progreso de asignación</span>
+          <span className="text-sm text-gray-600">{assignedShifts} de {totalShifts} turnos</span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-3">
           <div
@@ -249,12 +249,12 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
                 <p className="text-sm text-gray-600">{new Date(day.date).toLocaleDateString()}</p>
               </div>
               <div className="text-sm text-gray-600">
-                {day.shifts.filter(s => s.isAssigned).length}/{day.shifts.length} assigned
+                {day.shifts.filter(s => s.isAssigned).length}/{day.shifts.length} asignados
               </div>
             </div>
 
             {day.shifts.length === 0 ? (
-              <p className="text-gray-500 italic">No shifts scheduled</p>
+              <p className="text-gray-500 italic">No hay turnos programados</p>
             ) : (
               <div className="space-y-3">
                 {day.shifts.map((shift, shiftIndex) => {
@@ -292,7 +292,7 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
                               )}
                             </div>
                           ) : (
-                            <span className="text-gray-400 font-medium">UNASSIGNED</span>
+                            <span className="text-gray-400 font-medium">SIN ASIGNAR</span>
                           )}
 
                           <select
@@ -300,13 +300,13 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
                             onChange={(e) => handleStatusChange(dayIndex, shiftIndex, e.target.value as ShiftStatus)}
                             className="text-sm border border-gray-300 rounded px-2 py-1"
                           >
-                            <option value="assigned">Assigned</option>
-                            <option value="rest">Rest</option>
-                            <option value="vacation">Vacation</option>
-                            <option value="sick">Sick</option>
-                            <option value="absent">Absent</option>
-                            <option value="covering">Covering</option>
-                            <option value="empty">Empty</option>
+                            <option value="assigned">Asignado</option>
+                            <option value="rest">Descanso</option>
+                            <option value="vacation">Vacaciones</option>
+                            <option value="sick">Enfermo</option>
+                            <option value="absent">Ausente</option>
+                            <option value="covering">Cubriendo</option>
+                            <option value="empty">Vacío</option>
                           </select>
 
                           <select
@@ -314,7 +314,7 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
                             onChange={(e) => handleAssignShift(dayIndex, shiftIndex, e.target.value)}
                             className="text-sm border border-gray-300 rounded px-2 py-1"
                           >
-                            <option value="">Unassigned</option>
+                            <option value="">Sin asignar</option>
                             {availableEmployees.map(emp => (
                               <option key={emp.id} value={emp.id}>
                                 {emp.name} {emp.department ? `(${emp.department})` : ''}
@@ -326,7 +326,7 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
 
                       {availableEmployees.length === 0 && (
                         <div className="mt-2 text-sm text-yellow-600">
-                          ⚠️ No employees available for {day.dayName}
+                          ⚠️ No hay empleados disponibles para {day.dayName}
                         </div>
                       )}
                     </div>
