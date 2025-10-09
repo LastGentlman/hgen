@@ -161,7 +161,18 @@ export default function Home() {
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
                 <Calendar className="h-8 w-8 text-primary-600" />
-                <h1 className="text-2xl font-bold text-gray-900">HGen</h1>
+                <img
+                  src="/logo.svg"
+                  alt="HGen"
+                  className="h-8 w-auto"
+                  onError={(e) => {
+                    const target = e.currentTarget as HTMLImageElement
+                    if (!target.dataset.fallback) {
+                      target.dataset.fallback = '1'
+                      target.src = '/logo.png'
+                    }
+                  }}
+                />
               </div>
               <span className="text-sm text-gray-500">Generador de Horarios de Trabajo</span>
             </div>
