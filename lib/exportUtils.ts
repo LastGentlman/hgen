@@ -476,7 +476,6 @@ export function importAllSchedulesFromCSV(
 
         // Group rows by schedule name
         const scheduleGroups = new Map<string, typeof parsedData.rows>()
-        let invalidHorarioCount = 0
         parsedData.rows.forEach(row => {
           const scheduleName = row.scheduleName || 'Horario sin nombre'
           if (!scheduleGroups.has(scheduleName)) {
@@ -916,6 +915,7 @@ export function importFromCSV(
         let shiftsCreated = 0
         let coverageInfoRestored = 0
         let employeesNotFound: Set<string> = new Set()
+        let invalidHorarioCount = 0
 
         parsedData.rows.forEach(row => {
           // Find the day
