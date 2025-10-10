@@ -2,7 +2,26 @@ import { format, addDays } from 'date-fns'
 import { Employee, Schedule, ScheduleDay, Shift, ShiftTemplate, DayOfWeek } from '@/types'
 
 export function generateId(): string {
-  return Math.random().toString(36).substr(2, 9)
+  // Prefer cryptographically strong UUID v4 when available
+  try {
+    // Browser and modern Node runtimes
+    if (typeof crypto !== 'undefined' && typeof (crypto as any).randomUUID === 'function') {
+      return (crypto as any).randomUUID()
+    }
+  } catch {
+    // ignore and fallback
+  }
+  // Fallback UUID v4 generator
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
+export function isUuid(value: string | undefined | null): boolean {
+  if (!value) return false
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 }
 
 // Parse date string in local timezone to avoid timezone issues

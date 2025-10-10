@@ -1,34 +1,39 @@
 import { syncQueue, notifySyncStatus, type QueuedOperation } from './sync-queue'
 import { supabase } from './supabase'
+import { isUuid } from '@/lib/utils'
 import { Employee, Schedule } from '@/types'
 
 /**
  * Mapeo de campos (igual que hybrid-storage)
  */
-const mapEmployeeToDb = (employee: Employee) => ({
-  id: employee.id,
-  name: employee.name,
-  department: employee.department || null,
-  available_days: employee.availableDays,
-  email: employee.email || null,
-  phone: employee.phone || null,
-  assigned_shift: employee.assignedShift || null,
-  branch_code: employee.branchCode || null,
-  division: employee.division || null,
-  shift_rotation_count: employee.shiftRotationCount || 0,
-})
+const mapEmployeeToDb = (employee: Employee) => {
+  const base = {
+    name: employee.name,
+    department: employee.department || null,
+    available_days: employee.availableDays,
+    email: employee.email || null,
+    phone: employee.phone || null,
+    assigned_shift: employee.assignedShift || null,
+    branch_code: employee.branchCode || null,
+    division: employee.division || null,
+    shift_rotation_count: employee.shiftRotationCount || 0,
+  }
+  return isUuid(employee.id) ? { id: employee.id, ...base } : base
+}
 
-const mapScheduleToDb = (schedule: Schedule) => ({
-  id: schedule.id,
-  name: schedule.name,
-  start_date: schedule.startDate,
-  end_date: schedule.endDate,
-  days: schedule.days,
-  branch_code: schedule.branchCode || null,
-  division: schedule.division || null,
-  created_at: schedule.createdAt,
-  updated_at: schedule.updatedAt,
-})
+const mapScheduleToDb = (schedule: Schedule) => {
+  const base = {
+    name: schedule.name,
+    start_date: schedule.startDate,
+    end_date: schedule.endDate,
+    days: schedule.days,
+    branch_code: schedule.branchCode || null,
+    division: schedule.division || null,
+    created_at: schedule.createdAt,
+    updated_at: schedule.updatedAt,
+  }
+  return isUuid(schedule.id) ? { id: schedule.id, ...base } : base
+}
 
 /**
  * Procesa una operación pendiente
