@@ -15,18 +15,77 @@ import { showWarningHtml } from '@/lib/sweetalert'
  *   "23:00", "07:00" -> "night"
  */
 function getShiftTypeFromTime(startTime: string, endTime: string): 'morning' | 'afternoon' | 'night' | null {
-  const normalized = `${startTime}-${endTime}`
+  // Normalize times to HH:MM to tolerate inputs like "7:00-15:00", "07-15", "07.00-15.00"
+  const s = normalizeTimeString(startTime)
+  const e = normalizeTimeString(endTime)
+  const normalized = `${s}-${e}`
 
+  // Canonical quincenal times
   if (normalized === '07:00-15:00') return 'morning'
   if (normalized === '15:00-23:00') return 'afternoon'
   if (normalized === '23:00-07:00') return 'night'
 
+  // Accept common aliases sometimes used in sources (e.g., 06-14, 14-22, 22-06)
+  if (normalized === '06:00-14:00') return 'morning'
+  if (normalized === '14:00-22:00') return 'afternoon'
+  if (normalized === '22:00-06:00') return 'night'
+
   // Handle potential variations
-  if (startTime.startsWith('07:') && endTime.startsWith('15:')) return 'morning'
-  if (startTime.startsWith('15:') && endTime.startsWith('23:')) return 'afternoon'
-  if (startTime.startsWith('23:') && endTime.startsWith('07:')) return 'night'
+  if (s.startsWith('07:') && e.startsWith('15:')) return 'morning'
+  if (s.startsWith('06:') && e.startsWith('14:')) return 'morning'
+
+  if (s.startsWith('15:') && e.startsWith('23:')) return 'afternoon'
+  if (s.startsWith('14:') && e.startsWith('22:')) return 'afternoon'
+
+  if (s.startsWith('23:') && e.startsWith('07:')) return 'night'
+  if (s.startsWith('22:') && e.startsWith('06:')) return 'night'
 
   return null
+}
+
+/**
+ * Normalize a time string to HH:MM (e.g., 7 -> 07:00, 7:0 -> 07:00, 07.00 -> 07:00)
+ */
+function normalizeTimeString(raw: string): string {
+  const cleaned = (raw || '').trim().replace('.', ':')
+  const match = cleaned.match(/^(\d{1,2})(?::?(\d{1,2}))?$/)
+  if (!match) return (raw || '').trim()
+  let hh = match[1]
+  let mm = match[2] ?? '00'
+  if (mm.length === 1) mm = `0${mm}`
+  return `${hh.padStart(2, '0')}:${mm.padStart(2, '0')}`
+}
+
+/**
+ * Parse horario field tolerating different dash characters and spacing.
+ * Returns canonical HH:MM times or null when not parseable.
+ */
+function parseHorarioString(horario: string): { startTime: string; endTime: string } | null {
+  if (!horario) return null
+  const normalizedDash = horario.replace(/[–—−]/g, '-').trim()
+
+  // Try common pattern with hyphen
+  let parts = normalizedDash.split(/\s*-\s*/)
+  if (parts.length !== 2) {
+    // Try Spanish "a" separator: "07:00 a 15:00"
+    parts = normalizedDash.split(/\s*a\s*/i)
+  }
+  if (parts.length !== 2) return null
+
+  const start = normalizeTimeString(parts[0])
+  const end = normalizeTimeString(parts[1])
+  // Basic validation
+  if (!/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end)) return null
+  return { startTime: start, endTime: end }
+}
+
+/**
+ * Return canonical HH:MM times for known shift types to keep UI consistent.
+ */
+function getCanonicalTimesForShift(shift: 'morning' | 'afternoon' | 'night'): { startTime: string; endTime: string } {
+  if (shift === 'morning') return { startTime: '07:00', endTime: '15:00' }
+  if (shift === 'afternoon') return { startTime: '15:00', endTime: '23:00' }
+  return { startTime: '23:00', endTime: '07:00' }
 }
 
 /**
@@ -164,17 +223,15 @@ export function exportToCSV(
         const employee = employees.find(emp => emp.id === shift.employeeId)
         const employeeName = employee?.name || ''
 
-        // Determine shift name
-        let shiftName = ''
-        if (shift.startTime === '07:00' && shift.endTime === '15:00') {
-          shiftName = 'TURNO 1'
-        } else if (shift.startTime === '15:00' && shift.endTime === '23:00') {
-          shiftName = 'TURNO 2'
-        } else if (shift.startTime === '23:00' && shift.endTime === '07:00') {
-          shiftName = 'TURNO 3'
-        } else {
-          shiftName = `${shift.startTime}-${shift.endTime}`
-        }
+        // Determine shift name using robust detection (supports alias times like 06-14)
+        const detected = getShiftTypeFromTime(shift.startTime, shift.endTime)
+        const shiftName = detected === 'morning'
+          ? 'TURNO 1'
+          : detected === 'afternoon'
+          ? 'TURNO 2'
+          : detected === 'night'
+          ? 'TURNO 3'
+          : `${shift.startTime}-${shift.endTime}`
 
         // Extract coverage info if status is 'covering'
         let coverageType = ''
@@ -259,17 +316,15 @@ export function exportAllSchedulesToCSV(
           const employee = employees.find(emp => emp.id === shift.employeeId)
           const employeeName = employee?.name || ''
 
-          // Determine shift name
-          let shiftName = ''
-          if (shift.startTime === '07:00' && shift.endTime === '15:00') {
-            shiftName = 'TURNO 1'
-          } else if (shift.startTime === '15:00' && shift.endTime === '23:00') {
-            shiftName = 'TURNO 2'
-          } else if (shift.startTime === '23:00' && shift.endTime === '07:00') {
-            shiftName = 'TURNO 3'
-          } else {
-            shiftName = `${shift.startTime}-${shift.endTime}`
-          }
+          // Determine shift name using robust detection (supports alias times like 06-14)
+          const detected = getShiftTypeFromTime(shift.startTime, shift.endTime)
+          const shiftName = detected === 'morning'
+            ? 'TURNO 1'
+            : detected === 'afternoon'
+            ? 'TURNO 2'
+            : detected === 'night'
+            ? 'TURNO 3'
+            : `${shift.startTime}-${shift.endTime}`
 
           // Extract coverage info if status is 'covering'
           let coverageType = ''
@@ -421,6 +476,7 @@ export function importAllSchedulesFromCSV(
 
         // Group rows by schedule name
         const scheduleGroups = new Map<string, typeof parsedData.rows>()
+        let invalidHorarioCount = 0
         parsedData.rows.forEach(row => {
           const scheduleName = row.scheduleName || 'Horario sin nombre'
           if (!scheduleGroups.has(scheduleName)) {
@@ -530,6 +586,7 @@ export function importAllSchedulesFromCSV(
         const employeesNotFound: Set<string> = new Set()
 
         // Create a schedule for each group
+        let totalInvalidHorarioCount = 0
         improvedScheduleGroups.forEach((rows, scheduleName) => {
           console.log(`[importAllSchedulesFromCSV] 🔨 Creating schedule "${scheduleName}" with ${rows.length} shifts`)
 
@@ -578,11 +635,19 @@ export function importAllSchedulesFromCSV(
               return
             }
 
-            // Parse horario
-            const [startTime, endTime] = row.horario.split('-').map(t => t.trim())
-            if (!startTime || !endTime) {
+            // Parse horario robustly (accepts Unicode dashes, "a" separator, missing zeros)
+            const parsedHorario = parseHorarioString(row.horario)
+            if (!parsedHorario) {
               console.warn(`[importAllSchedulesFromCSV] ⚠️ Invalid horario: ${row.horario}`)
+              totalInvalidHorarioCount++
               return
+            }
+            let { startTime, endTime } = parsedHorario
+            const bucket = getShiftTypeFromTime(startTime, endTime)
+            if (bucket) {
+              const canonical = getCanonicalTimesForShift(bucket)
+              startTime = canonical.startTime
+              endTime = canonical.endTime
             }
 
             // Extract position from employee name
@@ -675,6 +740,10 @@ export function importAllSchedulesFromCSV(
             const employeesList = Array.from(employeesNotFound).map(name => `<li>${name}</li>`).join('')
             showWarningHtml(`Los siguientes empleados del CSV no se encontraron en tu lista:<br><br><ul style="text-align: left; margin: 10px 0;">${employeesList}</ul><br>Sus turnos se importaron pero sin empleado asignado.`, '⚠️ Empleados no encontrados')
           }
+        }
+
+        if (totalInvalidHorarioCount > 0 && !silentMode) {
+          console.warn(`[importAllSchedulesFromCSV] ⚠️ ${totalInvalidHorarioCount} fila(s) con horario inválido fueron omitidas`)
         }
 
         // Update assignedShift for each employee based on all imported schedules
@@ -856,11 +925,20 @@ export function importFromCSV(
             return
           }
 
-          // Parse horario (e.g., "07:00-15:00")
-          const [startTime, endTime] = row.horario.split('-').map(t => t.trim())
-          if (!startTime || !endTime) {
+          // Parse horario robustly (accepts Unicode dashes, "a" separator, missing zeros)
+          const parsedHorario = parseHorarioString(row.horario)
+          if (!parsedHorario) {
             console.warn(`[importFromCSV] ⚠️ Invalid horario: ${row.horario}`)
+            invalidHorarioCount++
             return
+          }
+          let { startTime, endTime } = parsedHorario
+          // Canonicalize to standard buckets so UI can match SHIFT_LABELS
+          const bucket = getShiftTypeFromTime(startTime, endTime)
+          if (bucket) {
+            const canonical = getCanonicalTimesForShift(bucket)
+            startTime = canonical.startTime
+            endTime = canonical.endTime
           }
 
           // Extract position from employee name (e.g., "KARLA 1" -> baseName: "KARLA", position: "C1")
@@ -958,6 +1036,9 @@ export function importFromCSV(
         })
 
         console.log('[importFromCSV] ✓ Shifts created:', shiftsCreated)
+        if (invalidHorarioCount > 0 && !silentMode) {
+          console.warn(`[importFromCSV] ⚠️ ${invalidHorarioCount} fila(s) con horario inválido fueron omitidas`)
+        }
 
         if (coverageInfoRestored > 0) {
           console.log('[importFromCSV] ✓ Coverage info restored:', coverageInfoRestored, 'shifts')
