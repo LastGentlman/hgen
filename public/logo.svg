@@ -1,11 +1,6 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg width="512" height="128" viewBox="0 0 512 128" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="512" height="128" rx="16" fill="#2563EB"/>
-  <g transform="translate(24,24)">
-    <rect x="0" y="0" width="80" height="80" rx="12" fill="white" opacity="0.15"/>
-    <circle cx="40" cy="40" r="26" stroke="white" stroke-width="8" fill="none"/>
-    <path d="M40 18v44" stroke="white" stroke-width="8" stroke-linecap="round"/>
-    <path d="M18 40h44" stroke="white" stroke-width="8" stroke-linecap="round"/>
-  </g>
-  <text x="130" y="78" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto" font-size="56" font-weight="700" fill="white">HGen</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 124 124" fill="none">
+<rect width="124" height="124" rx="24" fill="#F97316"/>
+<path d="M19.375 36.7818V100.625C19.375 102.834 21.1659 104.625 23.375 104.625H87.2181C90.7818 104.625 92.5664 100.316 90.0466 97.7966L26.2034 33.9534C23.6836 31.4336 19.375 33.2182 19.375 36.7818Z" fill="white"/>
+<circle cx="63.2109" cy="37.5391" r="18.1641" fill="black"/>
+<rect opacity="0.4" x="81.1328" y="80.7198" width="17.5687" height="17.3876" rx="4" transform="rotate(-45 81.1328 80.7198)" fill="#FDBA74"/>
 </svg>

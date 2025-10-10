@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { Employee, Schedule, BranchCode, Division } from '@/types'
 import { storage } from '@/lib/storage'
-import { Calendar, Users, Grid3x3, History, Menu } from 'lucide-react'
+import { Users, Grid3x3, History, Menu } from 'lucide-react'
 import Breadcrumbs from '@/components/Breadcrumbs'
 import SyncIndicator from '@/components/SyncIndicator'
 
@@ -160,7 +160,6 @@ export default function Home() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
-                <Calendar className="h-8 w-8 text-primary-600" />
                 <img
                   src="/logo.svg"
                   alt="HGen"
