@@ -170,7 +170,7 @@ export default function Home() {
                 <img
                   src="/artwork.min.svg"
                   alt="HGen"
-                  className="h-8 w-auto"
+                  className="h-8 w-auto md:h-10 lg:h-12 xl:h-14 2xl:h-16"
                   onError={(e) => {
                     const target = e.currentTarget as HTMLImageElement
                     if (!target.dataset.fallback) {
