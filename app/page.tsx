@@ -37,6 +37,13 @@ export default function Home() {
 
   useEffect(() => {
     const loadData = async () => {
+      // One-time migration from localStorage to Supabase if needed
+      try {
+        await storage.migrateFromLocalIfNeeded()
+      } catch (e) {
+        console.warn('Migration skipped or failed:', e)
+      }
+
       const loadedEmployees = await storage.getEmployees()
       const loadedSchedules = await storage.getSchedules()
 
