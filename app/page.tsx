@@ -357,15 +357,31 @@ export default function Home() {
         )}
 
         {activeTab === 'grid' && (
-          <GridView
-            schedule={activeSchedule}
-            employees={employees.filter(emp =>
-              emp.branchCode === branchCode && emp.division === division
-            )}
-            onUpdate={handleScheduleUpdate}
-            branchCode={branchCode}
-            division={division}
-          />
+          <>
+            {/* Mobile notice: grid view disabled on small screens */}
+            <div className="md:hidden">
+              <div className="card text-center py-12">
+                <Grid3x3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Función no disponible en móvil</h3>
+                <p className="text-gray-600">
+                  El horario en vista de cuadrícula no está disponible desde tu celular por el momento. Usa una computadora o tablet.
+                </p>
+              </div>
+            </div>
+
+            {/* Desktop and larger: show grid view */}
+            <div className="hidden md:block">
+              <GridView
+                schedule={activeSchedule}
+                employees={employees.filter(emp =>
+                  emp.branchCode === branchCode && emp.division === division
+                )}
+                onUpdate={handleScheduleUpdate}
+                branchCode={branchCode}
+                division={division}
+              />
+            </div>
+          </>
         )}
       </main>
 
