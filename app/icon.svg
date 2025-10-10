@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title">
+  <title>HGen – Calendario</title>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#EF4444"/>
+      <stop offset="1" stop-color="#DC2626"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Outer calendar body -->
+  <rect x="48" y="80" width="416" height="384" rx="40" fill="#ffffff" stroke="#111827" stroke-width="24"/>
+  <!-- Header bar -->
+  <rect x="48" y="80" width="416" height="112" rx="28" fill="url(#g)"/>
+  <!-- Rings -->
+  <rect x="128" y="48" width="48" height="64" rx="24" fill="#ffffff" stroke="#111827" stroke-width="16"/>
+  <rect x="336" y="48" width="48" height="64" rx="24" fill="#ffffff" stroke="#111827" stroke-width="16"/>
+
+  <!-- Grid of days -->
+  <g fill="#111827">
+    <rect x="96" y="232" width="64" height="64" rx="12"/>
+    <rect x="224" y="232" width="64" height="64" rx="12"/>
+    <rect x="352" y="232" width="64" height="64" rx="12"/>
+    <rect x="96" y="328" width="64" height="64" rx="12"/>
+    <rect x="224" y="328" width="64" height="64" rx="12"/>
+    <rect x="352" y="328" width="64" height="64" rx="12"/>
+  </g>
+</svg>
