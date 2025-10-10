@@ -161,14 +161,14 @@ export default function Home() {
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
                 <img
-                  src="/logo.svg"
+                  src="/artwork.min.svg"
                   alt="HGen"
                   className="h-8 w-auto"
                   onError={(e) => {
                     const target = e.currentTarget as HTMLImageElement
                     if (!target.dataset.fallback) {
                       target.dataset.fallback = '1'
-                      target.src = '/logo.png'
+                      target.src = '/artwork.svg'
                     }
                   }}
                 />
