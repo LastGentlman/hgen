@@ -1,22 +1,26 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Validar que las variables de entorno estén configuradas
+// Variables de entorno (pueden faltar en build)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    'Faltan las credenciales de Supabase. Por favor configura NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY en tu archivo .env.local'
-  )
+// Crear cliente sólo si hay credenciales; si no, exportar stub que lanza al usarse
+let supabaseClient: ReturnType<typeof createClient> | null = null
+
+if (supabaseUrl && supabaseAnonKey) {
+  supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  })
 }
 
-// Crear cliente de Supabase
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: false, // No necesitamos autenticación por ahora
-    autoRefreshToken: false,
-  },
-})
+export const supabase = (supabaseClient ?? (new Proxy({}, {
+  get() {
+    throw new Error('Faltan las credenciales de Supabase. Configura NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY en .env.local')
+  }
+}) as any))
 
 // Tipos para las tablas de Supabase (Database Types)
 export type ScheduleEdit = {
