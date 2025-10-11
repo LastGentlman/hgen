@@ -6,8 +6,7 @@ import { STATUS_CONFIG } from '@/lib/statusStyles'
 import { storage } from '@/lib/storage'
 import { formatTime, calculateShiftDuration } from '@/lib/utils'
 import { User, Clock, Download, FileText } from 'lucide-react'
-import jsPDF from 'jspdf'
-import html2canvas from 'html2canvas'
+// Heavy libs are lazy-loaded on demand to reduce initial bundle
 import { showError, showLoading, closeAlert, showSuccess } from '@/lib/sweetalert'
 
 interface ScheduleViewProps {
@@ -98,6 +97,11 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
 
     try {
       showLoading('Generando PDF...')
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf')
+      ])
+
       const canvas = await html2canvas(scheduleRef.current, {
         scale: 2,
         useCORS: true,
