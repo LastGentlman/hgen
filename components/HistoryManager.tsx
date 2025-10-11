@@ -6,7 +6,16 @@ import { storage } from '@/lib/storage'
 import { parseLocalDate } from '@/lib/utils'
 import { exportAllSchedulesToCSV } from '@/lib/exportUtils'
 import { History, Eye, Trash2, Calendar, ChevronDown, ChevronUp, AlertTriangle, Download } from 'lucide-react'
-import SchedulePreviewSVG from './SchedulePreviewSVG'
+import dynamic from 'next/dynamic'
+
+const SchedulePreviewSVG = dynamic(() => import('./SchedulePreviewSVG'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[140px] w-full flex items-center justify-center text-gray-400">
+      Cargando vista previa…
+    </div>
+  )
+})
 import { showDangerConfirm, showError } from '@/lib/sweetalert'
 
 interface HistoryManagerProps {
