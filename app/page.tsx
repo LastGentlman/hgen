@@ -96,6 +96,26 @@ export default function Home() {
     loadData()
   }, [])
 
+  // Idle-time preload for likely-used tabs to reduce first interaction latency
+  useEffect(() => {
+    const scheduleIdle = (cb: () => void) => {
+      if (typeof window === 'undefined') return
+      const w = window as any
+      if (typeof w.requestIdleCallback === 'function') {
+        w.requestIdleCallback(cb)
+      } else {
+        setTimeout(cb, 1500)
+      }
+    }
+
+    scheduleIdle(() => {
+      // Warm up dynamic chunks for common tabs
+      import('@/components/GridView')
+      import('@/components/HistoryManager')
+      import('@/components/EmployeeManager')
+    })
+  }, [])
+
   // When context changes, select appropriate schedule if exists
   useEffect(() => {
     const updateContext = async () => {

@@ -3,7 +3,13 @@
  * Todas las funciones retornan Promises para uso con async/await
  */
 
-import Swal from 'sweetalert2'
+let cachedSwal: any | null = null
+const loadSwal = async () => {
+  if (cachedSwal) return cachedSwal
+  const mod = await import('sweetalert2')
+  cachedSwal = mod.default
+  return cachedSwal
+}
 
 // Configuración base para todas las alertas
 const baseConfig = {
@@ -16,7 +22,8 @@ const baseConfig = {
 /**
  * Muestra un mensaje de éxito
  */
-export const showSuccess = (message: string, title: string = '¡Éxito!') => {
+export const showSuccess = async (message: string, title: string = '¡Éxito!') => {
+  const Swal = await loadSwal()
   return Swal.fire({
     icon: 'success',
     title,
@@ -29,7 +36,8 @@ export const showSuccess = (message: string, title: string = '¡Éxito!') => {
 /**
  * Muestra un mensaje de error
  */
-export const showError = (message: string, title: string = 'Error') => {
+export const showError = async (message: string, title: string = 'Error') => {
+  const Swal = await loadSwal()
   return Swal.fire({
     icon: 'error',
     title,
@@ -42,7 +50,8 @@ export const showError = (message: string, title: string = 'Error') => {
 /**
  * Muestra un mensaje de advertencia
  */
-export const showWarning = (message: string, title: string = 'Advertencia') => {
+export const showWarning = async (message: string, title: string = 'Advertencia') => {
+  const Swal = await loadSwal()
   return Swal.fire({
     icon: 'warning',
     title,
@@ -55,7 +64,8 @@ export const showWarning = (message: string, title: string = 'Advertencia') => {
 /**
  * Muestra un mensaje informativo
  */
-export const showInfo = (message: string, title: string = 'Información') => {
+export const showInfo = async (message: string, title: string = 'Información') => {
+  const Swal = await loadSwal()
   return Swal.fire({
     icon: 'info',
     title,
@@ -75,6 +85,7 @@ export const showConfirm = async (
   confirmText: string = 'Sí, continuar',
   cancelText: string = 'Cancelar'
 ): Promise<boolean> => {
+  const Swal = await loadSwal()
   const result = await Swal.fire({
     icon: 'question',
     title,
@@ -100,6 +111,7 @@ export const showDangerConfirm = async (
   confirmText: string = 'Sí, eliminar',
   cancelText: string = 'Cancelar'
 ): Promise<boolean> => {
+  const Swal = await loadSwal()
   const result = await Swal.fire({
     icon: 'warning',
     title,
@@ -119,7 +131,8 @@ export const showDangerConfirm = async (
  * Muestra un toast (notificación pequeña en la esquina)
  * Útil para confirmaciones rápidas que no interrumpen el flujo
  */
-export const showToast = (message: string, icon: 'success' | 'error' | 'warning' | 'info' = 'success') => {
+export const showToast = async (message: string, icon: 'success' | 'error' | 'warning' | 'info' = 'success') => {
+  const Swal = await loadSwal()
   return Swal.fire({
     toast: true,
     position: 'top-end',
@@ -139,7 +152,8 @@ export const showToast = (message: string, icon: 'success' | 'error' | 'warning'
  * Muestra un loading (spinner) mientras se ejecuta una operación
  * Útil para operaciones asíncronas
  */
-export const showLoading = (title: string = 'Procesando...', text?: string) => {
+export const showLoading = async (title: string = 'Procesando...', text?: string) => {
+  const Swal = await loadSwal()
   Swal.fire({
     title,
     text,
@@ -155,14 +169,18 @@ export const showLoading = (title: string = 'Procesando...', text?: string) => {
  * Cierra cualquier alerta activa
  */
 export const closeAlert = () => {
-  Swal.close()
+  // Cierra si ya se cargó; evita importar sólo para cerrar
+  if (cachedSwal) {
+    cachedSwal.close()
+  }
 }
 
 /**
  * Muestra un mensaje de advertencia con HTML personalizado
  * Útil para mensajes con listas o formato especial
  */
-export const showWarningHtml = (htmlContent: string, title: string = 'Advertencia') => {
+export const showWarningHtml = async (htmlContent: string, title: string = 'Advertencia') => {
+  const Swal = await loadSwal()
   return Swal.fire({
     icon: 'warning',
     title,
