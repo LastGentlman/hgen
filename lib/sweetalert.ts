@@ -141,7 +141,7 @@ export const showToast = async (message: string, icon: 'success' | 'error' | 'wa
     showConfirmButton: false,
     timer: 3000,
     timerProgressBar: true,
-    didOpen: (toast) => {
+    didOpen: (toast: HTMLElement) => {
       toast.addEventListener('mouseenter', Swal.stopTimer)
       toast.addEventListener('mouseleave', Swal.resumeTimer)
     }
