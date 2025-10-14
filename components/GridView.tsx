@@ -2625,7 +2625,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
             {companyName}
           </h1>
           <h2 className="text-lg text-white mt-2">
-            ROL DE TURNOS DEL {parseLocalDate(schedule.startDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })} AL {parseLocalDate(schedule.endDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}
+            ROL DE TURNOS DEL {parseLocalDate(schedule.startDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()} AL {parseLocalDate(schedule.endDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}
           </h2>
         </div>
 
