@@ -1006,9 +1006,10 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     }))
   }, [employees, schedule])
 
-  // Update the visible title based on selected division/branch (e.g., SUPER 001)
+  // Update the visible title based on selected division/branch (map 'super' -> 'TRUCK STOP')
   useEffect(() => {
-    const divisionLabel = (division || 'super').toUpperCase()
+    const rawDivision = division || 'super'
+    const divisionLabel = rawDivision === 'super' ? 'TRUCK STOP' : rawDivision.toUpperCase()
     const branchLabel = branchCode || '001'
     setCompanyName(`${divisionLabel} ${branchLabel}`)
   }, [branchCode, division])
