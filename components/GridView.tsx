@@ -967,9 +967,9 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     if (time === '14:00-22:00') return 'afternoon'
     if (time === '22:00-06:00') return 'night'
     // Tolerate legacy canonical times from older schedules
-    if (time === '06:00-14:00') return 'morning'
-    if (time === '14:00-22:00') return 'afternoon'
-    if (time === '22:00-06:00') return 'night'
+    if (time === '07:00-15:00') return 'morning'
+    if (time === '15:00-23:00') return 'afternoon'
+    if (time === '23:00-07:00') return 'night'
     return null
   }
 
