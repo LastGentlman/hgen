@@ -22,8 +22,8 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
     name: '',
     startDate: ''
   })
-  const [useGrok, setUseGrok] = useState(false)
-  const [grokNotes, setGrokNotes] = useState('')
+  const [useGemini, setUseGemini] = useState(false)
+  const [geminiNotes, setGeminiNotes] = useState('')
 
   useEffect(() => {
     const loadSchedules = async () => {
@@ -47,22 +47,22 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
     if (!formData.name.trim() || !formData.startDate) return
 
     try {
-      showLoading('Creando horario...', useGrok ? 'Consultando Grok AI para sugerir turnos…' : 'Generando turnos y guardando en tu dispositivo')
+      showLoading('Creando horario...', useGemini ? 'Consultando Gemini AI para sugerir turnos…' : 'Generando turnos y guardando en tu dispositivo')
       let templates = getDefaultShiftTemplates()
 
-      if (useGrok) {
+      if (useGemini) {
         try {
-          const resp = await fetch('/api/grok/suggest', {
+          const resp = await fetch('/api/gemini/suggest', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ instructions: grokNotes?.trim() || undefined })
+            body: JSON.stringify({ instructions: geminiNotes?.trim() || undefined })
           })
           const data = await resp.json()
           if (data?.ok && Array.isArray(data?.data?.shiftTemplates) && data.data.shiftTemplates.length > 0) {
             templates = data.data.shiftTemplates
           }
         } catch (e) {
-          console.warn('Grok suggest failed, using defaults', e)
+          console.warn('Gemini suggest failed, using defaults', e)
         }
       }
       const schedule = generateWeeklySchedule(formData.startDate, formData.name.trim(), templates)
@@ -199,21 +199,21 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
               <label className="flex items-center space-x-2">
                 <input
                   type="checkbox"
-                  checked={useGrok}
-                  onChange={(e) => setUseGrok(e.target.checked)}
+                  checked={useGemini}
+                  onChange={(e) => setUseGemini(e.target.checked)}
                 />
-                <span className="text-sm text-gray-800">Usar Grok AI para sugerir plantillas (opcional)</span>
+                <span className="text-sm text-gray-800">Usar Gemini AI para sugerir plantillas (opcional)</span>
               </label>
-              {useGrok && (
+              {useGemini && (
                 <div>
-                  <label className="block text-sm text-gray-700 mb-1">Instrucciones para Grok (opcional)</label>
+                  <label className="block text-sm text-gray-700 mb-1">Instrucciones para Gemini (opcional)</label>
                   <textarea
                     className="input min-h-[80px]"
-                    placeholder="Ej. Prefiere inicio de mañana 07:00, evita noches consecutivas, etc."
-                    value={grokNotes}
-                    onChange={(e) => setGrokNotes(e.target.value)}
+                    placeholder="Ej. Prefiere inicio de mañana 06:00, evita noches consecutivas, etc."
+                    value={geminiNotes}
+                    onChange={(e) => setGeminiNotes(e.target.value)}
                   />
-                  <p className="text-xs text-gray-500 mt-1">Si no hay clave de Grok configurada o falla la consulta, se usarán las plantillas por defecto.</p>
+                  <p className="text-xs text-gray-500 mt-1">Si no hay clave de Gemini configurada o falla la consulta, se usarán las plantillas por defecto.</p>
                 </div>
               )}
             </div>
