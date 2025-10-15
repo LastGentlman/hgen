@@ -31,9 +31,9 @@ const STATUS_CONFIG = {
 const STATUS_ROTATION: ShiftStatus[] = ['assigned', 'rest', 'vacation', 'covering']
 
 const SHIFT_LABELS = {
-  morning: { label: 'TURNO 1 DE 07:00 A 15:00 HRS', time: '07:00-15:00', shortLabel: 'T1' },
-  afternoon: { label: 'TURNO 2 DE 15:00 A 23:00 HRS', time: '15:00-23:00', shortLabel: 'T2' },
-  night: { label: 'TURNO 3 DE 23:00 A 07:00 HRS', time: '23:00-07:00', shortLabel: 'T3' }
+  morning: { label: 'TURNO 1 DE 06:00 A 14:00 HRS', time: '06:00-14:00', shortLabel: 'T1' },
+  afternoon: { label: 'TURNO 2 DE 14:00 A 22:00 HRS', time: '14:00-22:00', shortLabel: 'T2' },
+  night: { label: 'TURNO 3 DE 22:00 A 06:00 HRS', time: '22:00-06:00', shortLabel: 'T3' }
 }
 
 const ItemTypes = {
@@ -46,9 +46,9 @@ function getCoverageTooltip(coverageInfo?: CoverageInfo): string {
   if (!coverageInfo) return 'Cubriendo'
 
   const shiftLabels: Record<string, string> = {
-    'morning': 'Turno 1 (7:00-15:00)',
-    'afternoon': 'Turno 2 (15:00-23:00)',
-    'night': 'Turno 3 (23:00-7:00)'
+    'morning': 'Turno 1 (06:00-14:00)',
+    'afternoon': 'Turno 2 (14:00-22:00)',
+    'night': 'Turno 3 (22:00-06:00)'
   }
 
   // New format: branch + shift
@@ -348,9 +348,9 @@ function CoverageMenu({ isOpen, position, currentInfo, onSelect, onClose, curren
   // When covering another branch (type='branch'), you CAN cover same shift
   // Also filter out night shift (T3) for branch 002
   const shiftOptions = [
-    { type: 'morning', label: 'Turno 1', time: '7:00 - 15:00' },
-    { type: 'afternoon', label: 'Turno 2', time: '15:00 - 23:00' },
-    { type: 'night', label: 'Turno 3', time: '23:00 - 7:00' }
+    { type: 'morning', label: 'Turno 1', time: '06:00 - 14:00' },
+    { type: 'afternoon', label: 'Turno 2', time: '14:00 - 22:00' },
+    { type: 'night', label: 'Turno 3', time: '22:00 - 06:00' }
   ].filter(shift => {
     // Can't cover your own shift in your own branch (type='shift' selection)
     if (shift.type === currentShiftType) return false
@@ -361,9 +361,9 @@ function CoverageMenu({ isOpen, position, currentInfo, onSelect, onClose, curren
   // Get shift options for a specific branch (filter out T3 for branch 002)
   const getBranchShiftOptions = (branchCode: BranchCode) => {
     return [
-      { type: 'morning', label: 'Turno 1', time: '7:00 - 15:00' },
-      { type: 'afternoon', label: 'Turno 2', time: '15:00 - 23:00' },
-      { type: 'night', label: 'Turno 3', time: '23:00 - 7:00' }
+      { type: 'morning', label: 'Turno 1', time: '06:00 - 14:00' },
+      { type: 'afternoon', label: 'Turno 2', time: '14:00 - 22:00' },
+      { type: 'night', label: 'Turno 3', time: '22:00 - 06:00' }
     ].filter(shift => {
       if (shift.type === 'night' && branchCode === '002') return false // Branch 002 doesn't have T3
       return true
@@ -943,13 +943,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   } | null>(null)
   const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set())
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false)
-  const [newScheduleMode, setNewScheduleMode] = useState<'auto' | 'blank'>(() => {
-    if (typeof window !== 'undefined') {
-      const mode = localStorage.getItem('hgen_new_schedule_mode')
-      return mode === 'blank' || mode === 'auto' ? (mode as 'auto' | 'blank') : 'auto'
-    }
-    return 'auto'
-  })
+  // Only automatic generation is supported
   const [employeeContextMenu, setEmployeeContextMenu] = useState<{
     isOpen: boolean
     position: { x: number; y: number }
@@ -969,6 +963,10 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   // Helper function to determine shift type from time
   const getShiftTypeFromTime = (startTime: string, endTime: string): ShiftType | null => {
     const time = `${startTime}-${endTime}`
+    if (time === '06:00-14:00') return 'morning'
+    if (time === '14:00-22:00') return 'afternoon'
+    if (time === '22:00-06:00') return 'night'
+    // Tolerate legacy canonical times from older schedules
     if (time === '07:00-15:00') return 'morning'
     if (time === '15:00-23:00') return 'afternoon'
     if (time === '23:00-07:00') return 'night'
@@ -1026,12 +1024,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     setHiddenEmployees(new Set())
   }, [schedule?.id])
 
-  // Persist preferred default behavior for "Nuevo horario"
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('hgen_new_schedule_mode', newScheduleMode)
-    }
-  }, [newScheduleMode])
+  // (Blank mode removed) No preference to persist
 
   // Close actions menu when clicking outside
   useEffect(() => {
@@ -2353,9 +2346,9 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
       // Helper to get shift type from time
       const getShiftTypeFromTime = (startTime: string): ShiftType => {
-        if (startTime === '07:00') return 'morning'
-        if (startTime === '15:00') return 'afternoon'
-        if (startTime === '23:00') return 'night'
+        if (startTime === '06:00') return 'morning'
+        if (startTime === '14:00') return 'afternoon'
+        if (startTime === '22:00') return 'night'
         return 'unassigned'
       }
 
@@ -2408,9 +2401,9 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
           // Define shift times
           const shiftTimes: Record<ShiftType, { start: string; end: string }> = {
-            'morning': { start: '07:00', end: '15:00' },
-            'afternoon': { start: '15:00', end: '23:00' },
-            'night': { start: '23:00', end: '07:00' },
+            'morning': { start: '06:00', end: '14:00' },
+            'afternoon': { start: '14:00', end: '22:00' },
+            'night': { start: '22:00', end: '06:00' },
             'unassigned': { start: '', end: '' }
           }
 
@@ -2586,30 +2579,18 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     newSchedule.branchCode = targetBranchCode
     newSchedule.division = targetDivision
 
-    // Dejar el horario completamente en blanco
-    newSchedule.days.forEach(day => { day.shifts = [] })
-
+    // Blank mode removed: keep generated shifts
     await storage.addSchedule(newSchedule)
     onUpdate()
-    showSuccess(`Horario en blanco creado: ${scheduleName}`, '¡Horario creado!')
+    showSuccess(`Horario creado: ${scheduleName}`, '¡Horario creado!')
   }
 
   const handleNewScheduleClick = async () => {
-    if (newScheduleMode === 'auto') {
-      await handleCreateNextSchedule()
-    } else {
-      await handleCreateBlankNextSchedule()
-    }
+    await handleCreateNextSchedule()
   }
 
-  const handleNewScheduleContextMenu = (e: any) => {
-    e.preventDefault()
-    setNewScheduleMode(prev => {
-      const next = prev === 'auto' ? 'blank' : 'auto'
-      showSuccess(`Modo por defecto cambiado a "${next === 'auto' ? 'Generar automáticamente' : 'Horario en blanco'}".`, 'Preferencia actualizada')
-      return next
-    })
-  }
+  // Context menu no-op (blank mode removed)
+  const handleNewScheduleContextMenu = (_e: any) => {}
 
   if (!schedule) {
     return (
@@ -2625,8 +2606,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
           <div className="flex items-center justify-center gap-3">
             <button
               onClick={handleNewScheduleClick}
-              onContextMenu={handleNewScheduleContextMenu}
-              title={`Clic derecho: alternar modo (Actual: ${newScheduleMode === 'auto' ? 'Automático' : 'En blanco'})`}
+              title={"Crear horario para la siguiente quincena disponible"}
               className="btn btn-primary inline-flex items-center space-x-2 interactive"
             >
               <Plus className="h-5 w-5" />
@@ -2704,8 +2684,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
               {/* Botón Nuevo horario (a la izquierda del menú) */}
               <button
                 onClick={handleNewScheduleClick}
-                onContextMenu={handleNewScheduleContextMenu}
-                title={`Clic derecho: alternar modo (Actual: ${newScheduleMode === 'auto' ? 'Automático' : 'En blanco'})`}
+                title={"Crear horario para la siguiente quincena disponible"}
                 className="btn btn-primary inline-flex items-center space-x-2 interactive"
               >
                 <Plus className="h-5 w-5" />
