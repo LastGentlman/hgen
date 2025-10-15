@@ -22,6 +22,8 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
     name: '',
     startDate: ''
   })
+  const [useGrok, setUseGrok] = useState(false)
+  const [grokNotes, setGrokNotes] = useState('')
 
   useEffect(() => {
     const loadSchedules = async () => {
@@ -45,8 +47,24 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
     if (!formData.name.trim() || !formData.startDate) return
 
     try {
-      showLoading('Creando horario...', 'Generando turnos y guardando en tu dispositivo')
-      const templates = getDefaultShiftTemplates()
+      showLoading('Creando horario...', useGrok ? 'Consultando Grok AI para sugerir turnos…' : 'Generando turnos y guardando en tu dispositivo')
+      let templates = getDefaultShiftTemplates()
+
+      if (useGrok) {
+        try {
+          const resp = await fetch('/api/grok/suggest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ instructions: grokNotes?.trim() || undefined })
+          })
+          const data = await resp.json()
+          if (data?.ok && Array.isArray(data?.data?.shiftTemplates) && data.data.shiftTemplates.length > 0) {
+            templates = data.data.shiftTemplates
+          }
+        } catch (e) {
+          console.warn('Grok suggest failed, using defaults', e)
+        }
+      }
       const schedule = generateWeeklySchedule(formData.startDate, formData.name.trim(), templates)
 
       await storage.addSchedule(schedule)
@@ -177,6 +195,28 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
             <p className="text-xs text-gray-500 mt-2">
               El horario dura 15 días consecutivos. Puedes personalizar los turnos después de crear el horario.
             </p>
+            <div className="mt-4 p-3 border rounded-md bg-white space-y-2">
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={useGrok}
+                  onChange={(e) => setUseGrok(e.target.checked)}
+                />
+                <span className="text-sm text-gray-800">Usar Grok AI para sugerir plantillas (opcional)</span>
+              </label>
+              {useGrok && (
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">Instrucciones para Grok (opcional)</label>
+                  <textarea
+                    className="input min-h-[80px]"
+                    placeholder="Ej. Prefiere inicio de mañana 07:00, evita noches consecutivas, etc."
+                    value={grokNotes}
+                    onChange={(e) => setGrokNotes(e.target.value)}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Si no hay clave de Grok configurada o falla la consulta, se usarán las plantillas por defecto.</p>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center space-x-3 mt-6">
