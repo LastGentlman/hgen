@@ -296,11 +296,11 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
                 className="input"
               >
                 <option value="unassigned">Sin asignar</option>
-                <option value="morning">Turno 1 (7:00 - 15:00)</option>
-                <option value="afternoon">Turno 2 (15:00 - 23:00)</option>
+                <option value="morning">Turno 1 (06:00 - 14:00)</option>
+                <option value="afternoon">Turno 2 (14:00 - 22:00)</option>
                 {/* Branch 002 doesn't have night shift */}
                 {(formData.branchCode || selectedBranchCode) !== '002' && (
-                  <option value="night">Turno 3 (23:00 - 7:00)</option>
+                  <option value="night">Turno 3 (22:00 - 06:00)</option>
                 )}
               </select>
             </div>
@@ -445,11 +445,11 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
                       className="input"
                     >
                       <option value="unassigned">Sin asignar</option>
-                      <option value="morning">Turno 1 (7:00 - 15:00)</option>
-                      <option value="afternoon">Turno 2 (15:00 - 23:00)</option>
+                      <option value="morning">Turno 1 (06:00 - 14:00)</option>
+                      <option value="afternoon">Turno 2 (14:00 - 22:00)</option>
                       {/* Branch 002 doesn't have night shift */}
                       {((formData.branchCode as BranchCode) || employee.branchCode || selectedBranchCode) !== '002' && (
-                        <option value="night">Turno 3 (23:00 - 7:00)</option>
+                        <option value="night">Turno 3 (22:00 - 06:00)</option>
                       )}
                     </select>
                   </div>

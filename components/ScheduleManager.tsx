@@ -188,9 +188,9 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
             <h4 className="font-medium text-gray-900 mb-2">Plantilla de horario por defecto (ciclo de 15 días)</h4>
             <div className="text-sm text-gray-600 space-y-1">
               <p><strong>Operación 24/7:</strong> 3 turnos por día, todos los días</p>
-              <p><strong>Turno Mañana:</strong> 6:00 AM - 2:00 PM</p>
-              <p><strong>Turno Tarde:</strong> 2:00 PM - 10:00 PM</p>
-              <p><strong>Turno Noche:</strong> 10:00 PM - 6:00 AM</p>
+              <p><strong>Turno Mañana:</strong> 06:00 - 14:00</p>
+              <p><strong>Turno Tarde:</strong> 14:00 - 22:00</p>
+              <p><strong>Turno Noche:</strong> 22:00 - 06:00</p>
             </div>
             <p className="text-xs text-gray-500 mt-2">
               El horario dura 15 días consecutivos. Puedes personalizar los turnos después de crear el horario.

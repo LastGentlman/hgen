@@ -10,9 +10,9 @@ import { showWarningHtml } from '@/lib/sweetalert'
 /**
  * Map shift times to shiftType
  * Examples:
- *   "07:00", "15:00" -> "morning"
- *   "15:00", "23:00" -> "afternoon"
- *   "23:00", "07:00" -> "night"
+ *   "06:00", "14:00" -> "morning"
+ *   "14:00", "22:00" -> "afternoon"
+ *   "22:00", "06:00" -> "night"
  */
 function getShiftTypeFromTime(startTime: string, endTime: string): 'morning' | 'afternoon' | 'night' | null {
   // Normalize times to HH:MM to tolerate inputs like "7:00-15:00", "07-15", "07.00-15.00"
@@ -20,15 +20,15 @@ function getShiftTypeFromTime(startTime: string, endTime: string): 'morning' | '
   const e = normalizeTimeString(endTime)
   const normalized = `${s}-${e}`
 
-  // Canonical quincenal times
-  if (normalized === '07:00-15:00') return 'morning'
-  if (normalized === '15:00-23:00') return 'afternoon'
-  if (normalized === '23:00-07:00') return 'night'
-
-  // Accept common aliases sometimes used in sources (e.g., 06-14, 14-22, 22-06)
+  // Canonical quincenal times (new default)
   if (normalized === '06:00-14:00') return 'morning'
   if (normalized === '14:00-22:00') return 'afternoon'
   if (normalized === '22:00-06:00') return 'night'
+
+  // Accept legacy canonical times from older schedules
+  if (normalized === '07:00-15:00') return 'morning'
+  if (normalized === '15:00-23:00') return 'afternoon'
+  if (normalized === '23:00-07:00') return 'night'
 
   // Handle potential variations
   if (s.startsWith('07:') && e.startsWith('15:')) return 'morning'
@@ -83,9 +83,9 @@ function parseHorarioString(horario: string): { startTime: string; endTime: stri
  * Return canonical HH:MM times for known shift types to keep UI consistent.
  */
 function getCanonicalTimesForShift(shift: 'morning' | 'afternoon' | 'night'): { startTime: string; endTime: string } {
-  if (shift === 'morning') return { startTime: '07:00', endTime: '15:00' }
-  if (shift === 'afternoon') return { startTime: '15:00', endTime: '23:00' }
-  return { startTime: '23:00', endTime: '07:00' }
+  if (shift === 'morning') return { startTime: '06:00', endTime: '14:00' }
+  if (shift === 'afternoon') return { startTime: '14:00', endTime: '22:00' }
+  return { startTime: '22:00', endTime: '06:00' }
 }
 
 /**
@@ -194,8 +194,8 @@ export function exportToJSON(data: any, filename: string): void {
  *
  * CSV Format (NEW - includes coverage info):
  * Fecha,Día,Turno,Horario,Empleado,Posición,Estado,CoverageTipo,CoverageSucursal,CoverageTurno
- * 2025-01-01,Lunes,TURNO 1,07:00-15:00,Juan Perez,C1,assigned,,,
- * 2025-01-01,Lunes,TURNO 2,15:00-23:00,Pedro Lopez,C2,covering,branch,003,night
+ * 2025-01-01,Lunes,TURNO 1,06:00-14:00,Juan Perez,C1,assigned,,,
+ * 2025-01-01,Lunes,TURNO 2,14:00-22:00,Pedro Lopez,C2,covering,branch,003,night
  *
  * Notes:
  * - UTF-8 BOM included for Excel compatibility
