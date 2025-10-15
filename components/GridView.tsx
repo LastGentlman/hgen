@@ -943,6 +943,13 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   } | null>(null)
   const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set())
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false)
+  const [newScheduleMode, setNewScheduleMode] = useState<'auto' | 'blank'>(() => {
+    if (typeof window !== 'undefined') {
+      const mode = localStorage.getItem('hgen_new_schedule_mode')
+      return mode === 'blank' || mode === 'auto' ? (mode as 'auto' | 'blank') : 'auto'
+    }
+    return 'auto'
+  })
   const [employeeContextMenu, setEmployeeContextMenu] = useState<{
     isOpen: boolean
     position: { x: number; y: number }
@@ -1018,6 +1025,13 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   useEffect(() => {
     setHiddenEmployees(new Set())
   }, [schedule?.id])
+
+  // Persist preferred default behavior for "Nuevo horario"
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('hgen_new_schedule_mode', newScheduleMode)
+    }
+  }, [newScheduleMode])
 
   // Close actions menu when clicking outside
   useEffect(() => {
@@ -2451,6 +2465,152 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     showSuccess(`Horario creado: ${scheduleName}`, '¡Horario creado!')
   }
 
+  const handleCreateBlankNextSchedule = async () => {
+    let startDate: Date
+    let scheduleName: string
+    let targetBranchCode: BranchCode
+    let targetDivision: Division
+
+    const getNextPeriod = (currentDate: Date): { startDate: Date; scheduleName: string } => {
+      const year = currentDate.getFullYear()
+      const month = currentDate.getMonth()
+      const day = currentDate.getDate()
+
+      if (day === 1) {
+        return {
+          startDate: new Date(year, month, 1),
+          scheduleName: `Horario ${new Date(year, month, 1).toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 1ra Quincena`
+        }
+      } else if (day === 16) {
+        return {
+          startDate: new Date(year, month, 16),
+          scheduleName: `Horario ${new Date(year, month, 16).toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 2da Quincena`
+        }
+      } else if (day <= 15) {
+        return {
+          startDate: new Date(year, month, 16),
+          scheduleName: `Horario ${new Date(year, month, 16).toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 2da Quincena`
+        }
+      } else {
+        const nextMonth = new Date(year, month + 1, 1)
+        return {
+          startDate: nextMonth,
+          scheduleName: `Horario ${nextMonth.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 1ra Quincena`
+        }
+      }
+    }
+
+    const advancePeriod = (currentStart: Date): { startDate: Date; scheduleName: string } => {
+      const day = currentStart.getDate()
+      const year = currentStart.getFullYear()
+      const month = currentStart.getMonth()
+
+      if (day === 1) {
+        return {
+          startDate: new Date(year, month, 16),
+          scheduleName: `Horario ${new Date(year, month, 16).toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 2da Quincena`
+        }
+      } else {
+        const nextMonth = new Date(year, month + 1, 1)
+        return {
+          startDate: nextMonth,
+          scheduleName: `Horario ${nextMonth.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 1ra Quincena`
+        }
+      }
+    }
+
+    if (!schedule) {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const currentDay = today.getDate()
+
+      if (currentDay <= 15) {
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1)
+        scheduleName = `Horario ${today.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 1ra Quincena`
+      } else {
+        startDate = new Date(today.getFullYear(), today.getMonth(), 16)
+        scheduleName = `Horario ${today.toLocaleString('es-ES', { month: 'long', year: 'numeric' })} - 2da Quincena`
+      }
+
+      targetBranchCode = branchCode || '001'
+      targetDivision = division || 'super'
+    } else {
+      const scheduleEnd = new Date(schedule.endDate)
+      scheduleEnd.setHours(0, 0, 0, 0)
+
+      const nextDate = new Date(scheduleEnd)
+      nextDate.setDate(nextDate.getDate() + 1)
+
+      const nextPeriod = getNextPeriod(nextDate)
+      startDate = nextPeriod.startDate
+      scheduleName = nextPeriod.scheduleName
+
+      targetBranchCode = schedule.branchCode || branchCode || '001'
+      targetDivision = schedule.division || division || 'super'
+    }
+
+    const existingSchedules = await storage.getSchedules()
+    let attempts = 0
+    const maxAttempts = 24
+
+    while (attempts < maxAttempts) {
+      const startDateStr = startDate.toISOString().split('T')[0]
+      const exists = existingSchedules.some(s =>
+        s.startDate === startDateStr &&
+        s.branchCode === targetBranchCode &&
+        s.division === targetDivision
+      )
+
+      if (!exists) {
+        break
+      }
+
+      const nextPeriod = advancePeriod(startDate)
+      startDate = nextPeriod.startDate
+      scheduleName = nextPeriod.scheduleName
+      attempts++
+    }
+
+    if (attempts >= maxAttempts) {
+      showWarning('No se pudo encontrar un período disponible. Por favor, revisa tus horarios existentes.')
+      return
+    }
+
+    const templates = getDefaultShiftTemplates()
+    const newSchedule = generateWeeklySchedule(
+      startDate.toISOString().split('T')[0],
+      scheduleName,
+      templates
+    )
+
+    newSchedule.branchCode = targetBranchCode
+    newSchedule.division = targetDivision
+
+    // Dejar el horario completamente en blanco
+    newSchedule.days.forEach(day => { day.shifts = [] })
+
+    await storage.addSchedule(newSchedule)
+    onUpdate()
+    showSuccess(`Horario en blanco creado: ${scheduleName}`, '¡Horario creado!')
+  }
+
+  const handleNewScheduleClick = async () => {
+    if (newScheduleMode === 'auto') {
+      await handleCreateNextSchedule()
+    } else {
+      await handleCreateBlankNextSchedule()
+    }
+  }
+
+  const handleNewScheduleContextMenu = (e: any) => {
+    e.preventDefault()
+    setNewScheduleMode(prev => {
+      const next = prev === 'auto' ? 'blank' : 'auto'
+      showSuccess(`Modo por defecto cambiado a "${next === 'auto' ? 'Generar automáticamente' : 'Horario en blanco'}".`, 'Preferencia actualizada')
+      return next
+    })
+  }
+
   if (!schedule) {
     return (
       <div className="card text-center py-12">
@@ -2464,7 +2624,9 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
           </div>
           <div className="flex items-center justify-center gap-3">
             <button
-              onClick={handleCreateNextSchedule}
+              onClick={handleNewScheduleClick}
+              onContextMenu={handleNewScheduleContextMenu}
+              title={`Clic derecho: alternar modo (Actual: ${newScheduleMode === 'auto' ? 'Automático' : 'En blanco'})`}
               className="btn btn-primary inline-flex items-center space-x-2 interactive"
             >
               <Plus className="h-5 w-5" />
@@ -2541,7 +2703,9 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
             <div className="flex items-center gap-3">
               {/* Botón Nuevo horario (a la izquierda del menú) */}
               <button
-                onClick={handleCreateNextSchedule}
+                onClick={handleNewScheduleClick}
+                onContextMenu={handleNewScheduleContextMenu}
+                title={`Clic derecho: alternar modo (Actual: ${newScheduleMode === 'auto' ? 'Automático' : 'En blanco'})`}
                 className="btn btn-primary inline-flex items-center space-x-2 interactive"
               >
                 <Plus className="h-5 w-5" />
