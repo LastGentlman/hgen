@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS employees (
   branch_code TEXT CHECK (branch_code IN ('001', '002', '003')),
   division TEXT CHECK (division IN ('super', 'gasolinera', 'restaurant', 'limpieza')),
   shift_rotation_count INTEGER DEFAULT 0,
+  is_active BOOLEAN DEFAULT true,
+  deleted_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -71,6 +73,7 @@ CREATE TABLE IF NOT EXISTS schedule_metrics (
 -- ============================================
 CREATE INDEX IF NOT EXISTS idx_employees_branch ON employees(branch_code);
 CREATE INDEX IF NOT EXISTS idx_employees_division ON employees(division);
+CREATE INDEX IF NOT EXISTS idx_employees_active ON employees(is_active);
 CREATE INDEX IF NOT EXISTS idx_schedules_dates ON schedules(start_date, end_date);
 CREATE INDEX IF NOT EXISTS idx_schedules_branch ON schedules(branch_code);
 CREATE INDEX IF NOT EXISTS idx_schedule_edits_schedule ON schedule_edits(schedule_id);
