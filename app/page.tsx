@@ -406,7 +406,20 @@ export default function Home() {
       </main>
 
       {/* Sync Indicator - shows online/offline status and pending operations */}
-      <SyncIndicator />
+      <SyncIndicator onDataRefresh={async () => {
+        const employees = await storage.getEmployees()
+        const schedules = await storage.getSchedules()
+        setEmployees(employees)
+        setSchedules(schedules)
+
+        // Update active schedule if it exists
+        if (activeSchedule) {
+          const updated = schedules.find(s => s.id === activeSchedule.id)
+          if (updated) {
+            setActiveSchedule(updated)
+          }
+        }
+      }} />
     </div>
   )
 }

@@ -178,6 +178,105 @@ function EmployeeContextMenu({ isOpen, position, employeeId, currentBranchCode, 
   )
 }
 
+// Inactive Employees Context Menu Component
+interface InactiveEmployeesContextMenuProps {
+  isOpen: boolean
+  position: { x: number; y: number }
+  inactiveEmployees: Employee[]
+  onRestore: (employeeId: string) => void
+  onClose: () => void
+}
+
+function InactiveEmployeesContextMenu({ isOpen, position, inactiveEmployees, onRestore, onClose }: InactiveEmployeesContextMenuProps) {
+  if (!isOpen) return null
+
+  return (
+    <>
+      {/* Backdrop to close menu */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 999
+        }}
+      />
+
+      {/* Context Menu */}
+      <div
+        style={{
+          position: 'fixed',
+          top: position.y,
+          left: position.x,
+          backgroundColor: 'white',
+          border: '1px solid #ccc',
+          borderRadius: '4px',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+          zIndex: 1000,
+          minWidth: '250px',
+          maxWidth: '350px',
+          maxHeight: '400px',
+          overflowY: 'auto'
+        }}
+      >
+        <div style={{ padding: '8px 0' }}>
+          <div style={{ padding: '8px 16px', fontSize: '12px', color: '#666', fontWeight: 'bold', borderBottom: '1px solid #eee' }}>
+            Empleados removidos
+          </div>
+
+          {inactiveEmployees.length === 0 ? (
+            <div style={{ padding: '16px', textAlign: 'center', color: '#999', fontSize: '14px' }}>
+              No hay empleados removidos
+            </div>
+          ) : (
+            inactiveEmployees.map(employee => (
+              <button
+                key={employee.id}
+                onClick={() => {
+                  onRestore(employee.id)
+                  onClose()
+                }}
+                style={{
+                  width: '100%',
+                  padding: '10px 16px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  borderBottom: '1px solid #f0f0f0'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0f0f0'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+              >
+                <div style={{ fontWeight: '500', marginBottom: '4px' }}>{employee.name}</div>
+                <div style={{ fontSize: '11px', color: '#666' }}>
+                  {employee.branchCode && `Sucursal ${employee.branchCode}`}
+                  {employee.branchCode && employee.division && ' • '}
+                  {employee.division && <span style={{ textTransform: 'capitalize' }}>{employee.division}</span>}
+                </div>
+                {employee.deletedAt && (
+                  <div style={{ fontSize: '10px', color: '#999', marginTop: '2px' }}>
+                    Removido: {new Date(employee.deletedAt).toLocaleDateString('es-ES', {
+                      day: '2-digit',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </div>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
 // Confirm Delete Dialog Component
 interface ConfirmDeleteDialogProps {
   isOpen: boolean
@@ -224,52 +323,60 @@ function ConfirmDeleteDialog({ isOpen, employeeName, onDeleteFromSchedule, onDel
             ¿Cómo deseas eliminar a {employeeName}?
           </h3>
           <p style={{ margin: '0 0 24px 0', fontSize: '14px', color: '#666' }}>
-            Elige una opción:
+            Elige el tipo de eliminación:
           </p>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {/* Delete from schedule only */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {/* Soft-delete - recoverable */}
             <button
               onClick={() => {
                 onDeleteFromSchedule()
                 onClose()
               }}
               style={{
-                padding: '12px 16px',
+                padding: '14px 16px',
                 border: '1px solid #3B82F6',
                 backgroundColor: '#3B82F6',
                 color: 'white',
                 borderRadius: '6px',
                 cursor: 'pointer',
                 fontSize: '14px',
-                fontWeight: '500'
+                fontWeight: '500',
+                textAlign: 'left'
               }}
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563EB'}
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3B82F6'}
             >
-              📅 Solo de este horario
+              <div>📅 Remover temporalmente</div>
+              <div style={{ fontSize: '11px', marginTop: '4px', opacity: 0.9 }}>
+                Suspensión, cambio de área o sucursal. Puede ser restaurado.
+              </div>
             </button>
 
-            {/* Delete employee permanently */}
+            {/* Hard-delete - permanent */}
             <button
               onClick={() => {
                 onDeleteEmployee()
                 onClose()
               }}
               style={{
-                padding: '12px 16px',
+                padding: '14px 16px',
                 border: '1px solid #DC2626',
                 backgroundColor: '#DC2626',
                 color: 'white',
                 borderRadius: '6px',
                 cursor: 'pointer',
                 fontSize: '14px',
-                fontWeight: '500'
+                fontWeight: '500',
+                textAlign: 'left'
               }}
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#B91C1C'}
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#DC2626'}
             >
-              🗑️ Como empleado (permanente)
+              <div>🗑️ Eliminar permanentemente</div>
+              <div style={{ fontSize: '11px', marginTop: '4px', opacity: 0.9 }}>
+                Despido definitivo. Esta acción NO se puede deshacer.
+              </div>
             </button>
 
             {/* Cancel */}
@@ -954,6 +1061,11 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     employeeId: string
     employeeName: string
   } | null>(null)
+  const [inactiveEmployeesMenu, setInactiveEmployeesMenu] = useState<{
+    isOpen: boolean
+    position: { x: number; y: number }
+  } | null>(null)
+  const [inactiveEmployees, setInactiveEmployees] = useState<Employee[]>([])
   const [hiddenEmployees, setHiddenEmployees] = useState<Set<string>>(new Set())
 
   const tableRef = useRef<HTMLDivElement>(null)
@@ -993,7 +1105,12 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
     // The shift with most occurrences is the assigned shift
     const maxCount = Math.max(shiftCounts.morning, shiftCounts.afternoon, shiftCounts.night)
-    if (maxCount === 0) return 'unassigned'
+
+    // If no shifts in schedule, use employee's original assignedShift as fallback
+    if (maxCount === 0) {
+      const employee = employees.find(emp => emp.id === employeeId)
+      return employee?.assignedShift || 'unassigned'
+    }
 
     if (shiftCounts.morning === maxCount) return 'morning'
     if (shiftCounts.afternoon === maxCount) return 'afternoon'
@@ -1604,10 +1721,56 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     })
   }
 
+  const handleHeaderContextMenu = async (e: React.MouseEvent) => {
+    e.preventDefault()
+
+    // Load inactive employees
+    const inactive = await storage.getInactiveEmployees()
+    setInactiveEmployees(inactive)
+
+    // Show menu
+    setInactiveEmployeesMenu({
+      isOpen: true,
+      position: { x: e.clientX, y: e.clientY }
+    })
+  }
+
+  const handleRestoreEmployee = async (employeeId: string) => {
+    try {
+      // Close menu first
+      setInactiveEmployeesMenu(null)
+
+      // Restore employee in database
+      await storage.restoreEmployee(employeeId)
+
+      // Remove from hidden employees if present
+      setHiddenEmployees(prev => {
+        const updated = new Set(prev)
+        updated.delete(employeeId)
+        return updated
+      })
+
+      // Wait for Supabase transaction to fully complete
+      await new Promise(resolve => setTimeout(resolve, 300))
+
+      // Update main employee list (this reloads from database)
+      await onUpdate()
+
+      // Reload inactive employees list
+      const inactive = await storage.getInactiveEmployees()
+      setInactiveEmployees(inactive)
+    } catch (error) {
+      console.error('Error during employee restoration:', error)
+    }
+  }
+
   const handleDeleteFromScheduleOnly = async (employeeId: string) => {
     if (!schedule) return
 
-    // Remove all shifts assigned to this employee in THIS schedule only
+    // Soft-delete employee (can be restored from GridView)
+    await storage.deleteEmployee(employeeId)
+
+    // Remove all shifts assigned to this employee in THIS schedule
     const updatedSchedule = { ...schedule }
     updatedSchedule.days.forEach(day => {
       day.shifts.forEach(shift => {
@@ -1621,18 +1784,14 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     })
 
     await storage.updateSchedule(schedule.id, updatedSchedule)
-
-    // Hide employee from grid
-    setHiddenEmployees(prev => new Set(prev).add(employeeId))
-
     onUpdate()
   }
 
   const handleDeleteEmployeePermanently = async (employeeId: string) => {
     if (!schedule) return
 
-    // Remove employee from storage (permanently)
-    await storage.deleteEmployee(employeeId)
+    // Permanent deletion - cannot be recovered
+    await storage.hardDeleteEmployee(employeeId)
 
     // Remove all shifts assigned to this employee in THIS schedule
     const updatedSchedule = { ...schedule }
@@ -2663,6 +2822,17 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
         />
       )}
 
+      {/* Inactive Employees Context Menu */}
+      {inactiveEmployeesMenu && (
+        <InactiveEmployeesContextMenu
+          isOpen={inactiveEmployeesMenu.isOpen}
+          position={inactiveEmployeesMenu.position}
+          inactiveEmployees={inactiveEmployees}
+          onRestore={handleRestoreEmployee}
+          onClose={() => setInactiveEmployeesMenu(null)}
+        />
+      )}
+
       {/* Delete Confirmation Dialog */}
       {deleteDialog && (
         <ConfirmDeleteDialog
@@ -2777,7 +2947,13 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
         <table style={{ width: '100%', borderCollapse: 'collapse', border: '2px solid #000' }}>
           <thead>
             <tr style={{ backgroundColor: '#654321' }}>
-              <th style={{ border: '1px solid #000', padding: '8px', width: '150px', fontWeight: 'bold', backgroundColor: '#FFFFFF' }}>Nombre</th>
+              <th
+                style={{ border: '1px solid #000', padding: '8px', width: '150px', fontWeight: 'bold', backgroundColor: '#FFFFFF', cursor: 'context-menu' }}
+                onContextMenu={handleHeaderContextMenu}
+                title="Clic derecho para ver empleados removidos"
+              >
+                Nombre
+              </th>
               {schedule.days.map((day, idx) => (
                 <th key={idx} style={{ border: '1px solid #000', padding: '4px', fontSize: '11px', color: '#FFFFFF', backgroundColor: '#654321' }}>
                   <div>{parseLocalDate(day.date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })}</div>

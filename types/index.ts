@@ -17,6 +17,9 @@ export interface Employee {
   division?: Division
   // Shift rotation counter (tracks how many schedules in current shift)
   shiftRotationCount?: number
+  // Soft-delete fields
+  isActive?: boolean  // Default true, false = employee in limbo
+  deletedAt?: string  // ISO timestamp of when employee was removed
 }
 
 export type ShiftStatus = 'assigned' | 'rest' | 'vacation' | 'sick' | 'absent' | 'covering' | 'empty'

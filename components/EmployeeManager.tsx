@@ -114,13 +114,13 @@ export default function EmployeeManager({ onUpdate, branchCode, division }: Empl
 
   const handleDelete = async (id: string) => {
     const confirmed = await showDangerConfirm(
-      'Esta acción no se puede deshacer.',
+      'Esta acción eliminará permanentemente al empleado y NO se puede deshacer.',
       '¿Eliminar empleado?',
       'Sí, eliminar'
     )
 
     if (confirmed) {
-      await storage.deleteEmployee(id)
+      await storage.hardDeleteEmployee(id)
       const employees = await storage.getEmployees()
       setEmployees(employees)
       onUpdate()
