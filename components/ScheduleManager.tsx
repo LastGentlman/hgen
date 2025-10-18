@@ -24,6 +24,8 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
   })
   const [useGemini, setUseGemini] = useState(false)
   const [geminiNotes, setGeminiNotes] = useState('')
+  const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
+  const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     const loadSchedules = async () => {
@@ -32,6 +34,17 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
     }
     loadSchedules()
   }, [])
+
+  useEffect(() => {
+    if (!isContextMenuOpen) return
+    const close = () => setIsContextMenuOpen(false)
+    window.addEventListener('click', close)
+    window.addEventListener('contextmenu', close)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('contextmenu', close)
+    }
+  }, [isContextMenuOpen])
 
   const handleCreate = () => {
     setIsCreating(true)
@@ -132,6 +145,11 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
             <div className="flex items-center justify-end">
               <button
                 onClick={handleCreate}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  setIsContextMenuOpen(true)
+                  setContextMenuPos({ x: e.clientX, y: e.clientY })
+                }}
                 className="btn btn-primary flex items-center space-x-2"
                 disabled={isCreating}
               >
@@ -317,7 +335,16 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
                   <div className="p-5 rounded-xl border-2 hover:shadow-md transition-all text-left">
                     <div className="text-sm font-semibold text-primary-700 mb-1">Crear desde cero</div>
                     <p className="text-sm text-gray-600 mb-3">Define turnos manualmente asignando empleados día por día.</p>
-                    <button onClick={handleCreate} className="btn btn-primary w-full" disabled={employees.length === 0}>Comenzar</button>
+                    <button
+                      onClick={handleCreate}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        setIsContextMenuOpen(true)
+                        setContextMenuPos({ x: e.clientX, y: e.clientY })
+                      }}
+                      className="btn btn-primary w-full"
+                      disabled={employees.length === 0}
+                    >Comenzar</button>
                   </div>
                   <div className="p-5 rounded-xl border-2 hover:shadow-md transition-all text-left">
                     <div className="text-sm font-semibold text-gray-800 mb-1">Importar CSV</div>
@@ -338,6 +365,26 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
           </div>
         )}
       </div>
+    </div>
+      {isContextMenuOpen && contextMenuPos && (
+        <div
+          className="fixed z-50 bg-white border border-gray-200 rounded-md shadow-lg w-56 py-1"
+          style={{ top: contextMenuPos.y, left: contextMenuPos.x }}
+          role="menu"
+          aria-label="Menú crear horario"
+        >
+          <button
+            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100"
+            onClick={() => {
+              setIsContextMenuOpen(false)
+              handleCreate()
+            }}
+            role="menuitem"
+          >
+            Abrir formulario de creación
+          </button>
+        </div>
+      )}
     </div>
   )
 }
