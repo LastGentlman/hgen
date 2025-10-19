@@ -24,6 +24,14 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
   })
   const [useGemini, setUseGemini] = useState(false)
   const [geminiNotes, setGeminiNotes] = useState('')
+  const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
+  const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null)
+  type LeftClickBehavior = 'form' | 'quick'
+  const [leftClickBehavior, setLeftClickBehavior] = useState<LeftClickBehavior>(() => {
+    if (typeof window === 'undefined') return 'form'
+    const stored = window.localStorage.getItem('hgen_left_click_create_behavior') as LeftClickBehavior | null
+    return stored === 'quick' || stored === 'form' ? stored : 'form'
+  })
 
   useEffect(() => {
     const loadSchedules = async () => {
@@ -32,6 +40,23 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
     }
     loadSchedules()
   }, [])
+
+  useEffect(() => {
+    if (!isContextMenuOpen) return
+    const close = () => setIsContextMenuOpen(false)
+    window.addEventListener('click', close)
+    window.addEventListener('contextmenu', close)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('contextmenu', close)
+    }
+  }, [isContextMenuOpen])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('hgen_left_click_create_behavior', leftClickBehavior)
+    } catch {}
+  }, [leftClickBehavior])
 
   const handleCreate = () => {
     setIsCreating(true)
@@ -87,6 +112,29 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
     setFormData({ name: '', startDate: '' })
   }
 
+  const handleQuickCreate = async () => {
+    try {
+      const today = new Date()
+      const name = `Horario rápido - ${today.toLocaleDateString('es-ES')}`
+      const startDate = today.toISOString().split('T')[0]
+      showLoading('Creando horario...', 'Generando turnos y guardando en tu dispositivo')
+      const templates = getDefaultShiftTemplates()
+      const schedule = generateWeeklySchedule(startDate, name.trim(), templates)
+      await storage.addSchedule(schedule)
+      const schedules = await storage.getSchedules()
+      setSchedules(schedules)
+      setIsCreating(false)
+      setFormData({ name: '', startDate: '' })
+      onUpdate()
+      closeAlert()
+      showSuccess('El horario se creó correctamente.', '¡Horario creado!')
+    } catch (error) {
+      console.error(error)
+      closeAlert()
+      showError('No se pudo crear el horario. Intenta de nuevo.')
+    }
+  }
+
   const handleDelete = async (id: string) => {
     const confirmed = await showDangerConfirm(
       'Esta acción no se puede deshacer.',
@@ -131,7 +179,18 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
           <div className="border-t p-6 space-y-6">
             <div className="flex items-center justify-end">
               <button
-                onClick={handleCreate}
+                onClick={() => {
+                  if (leftClickBehavior === 'quick') {
+                    handleQuickCreate()
+                  } else {
+                    handleCreate()
+                  }
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  setIsContextMenuOpen(true)
+                  setContextMenuPos({ x: e.clientX, y: e.clientY })
+                }}
                 className="btn btn-primary flex items-center space-x-2"
                 disabled={isCreating}
               >
@@ -317,7 +376,22 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
                   <div className="p-5 rounded-xl border-2 hover:shadow-md transition-all text-left">
                     <div className="text-sm font-semibold text-primary-700 mb-1">Crear desde cero</div>
                     <p className="text-sm text-gray-600 mb-3">Define turnos manualmente asignando empleados día por día.</p>
-                    <button onClick={handleCreate} className="btn btn-primary w-full" disabled={employees.length === 0}>Comenzar</button>
+                    <button
+                      onClick={() => {
+                        if (leftClickBehavior === 'quick') {
+                          handleQuickCreate()
+                        } else {
+                          handleCreate()
+                        }
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        setIsContextMenuOpen(true)
+                        setContextMenuPos({ x: e.clientX, y: e.clientY })
+                      }}
+                      className="btn btn-primary w-full"
+                      disabled={employees.length === 0}
+                    >Comenzar</button>
                   </div>
                   <div className="p-5 rounded-xl border-2 hover:shadow-md transition-all text-left">
                     <div className="text-sm font-semibold text-gray-800 mb-1">Importar CSV</div>
@@ -338,6 +412,60 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
           </div>
         )}
       </div>
+      {isContextMenuOpen && contextMenuPos && (
+        <div
+          className="fixed z-50 bg-white border border-gray-200 rounded-md shadow-lg w-56 py-1"
+          style={{ top: contextMenuPos.y, left: contextMenuPos.x }}
+          role="menu"
+          aria-label="Menú crear horario"
+        >
+          <div className="px-3 py-1 text-xs text-gray-500">Acciones</div>
+          <button
+            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100"
+            onClick={() => {
+              setIsContextMenuOpen(false)
+              handleCreate()
+            }}
+            role="menuitem"
+          >
+            Abrir formulario de creación
+          </button>
+          <button
+            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100"
+            onClick={() => {
+              setIsContextMenuOpen(false)
+              handleQuickCreate()
+            }}
+            role="menuitem"
+          >
+            Crear rápido ahora
+          </button>
+          <div className="my-1 border-t border-gray-200" />
+          <div className="px-3 py-1 text-xs text-gray-500">Preferencia de clic izquierdo</div>
+          <button
+            className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${leftClickBehavior === 'form' ? 'font-semibold' : ''}`}
+            onClick={() => {
+              setLeftClickBehavior('form')
+              setIsContextMenuOpen(false)
+            }}
+            role="menuitem"
+            aria-checked={leftClickBehavior === 'form'}
+          >
+            {leftClickBehavior === 'form' ? '✓ ' : ''}Abrir formulario (predeterminado)
+          </button>
+          <button
+            className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${leftClickBehavior === 'quick' ? 'font-semibold' : ''}`}
+            onClick={() => {
+              setLeftClickBehavior('quick')
+              setIsContextMenuOpen(false)
+            }}
+            role="menuitem"
+            aria-checked={leftClickBehavior === 'quick'}
+          >
+            {leftClickBehavior === 'quick' ? '✓ ' : ''}Crear rápido
+          </button>
+        </div>
+      )}
     </div>
   )
 }
