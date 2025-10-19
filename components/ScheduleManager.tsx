@@ -412,7 +412,6 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
           </div>
         )}
       </div>
-    </div>
       {isContextMenuOpen && contextMenuPos && (
         <div
           className="fixed z-50 bg-white border border-gray-200 rounded-md shadow-lg w-56 py-1"
