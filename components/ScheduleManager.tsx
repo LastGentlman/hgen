@@ -1,20 +1,24 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Employee, Schedule, ShiftTemplate } from '@/types'
+import { Employee, Schedule, ShiftTemplate, BranchCode, Division } from '@/types'
 import { storage } from '@/lib/storage'
 import { generateWeeklySchedule, getDefaultShiftTemplates } from '@/lib/utils'
-import { Plus, Calendar, Edit2, Trash2, Eye, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Calendar, Edit2, Trash2, Eye, ChevronDown, ChevronUp, Download, AlertTriangle } from 'lucide-react'
 import { showLoading, closeAlert, showSuccess, showError } from '@/lib/sweetalert'
 import { showDangerConfirm } from '@/lib/sweetalert'
+import { exportAllSchedulesToCSV } from '@/lib/exportUtils'
 
 interface ScheduleManagerProps {
   employees: Employee[]
   onUpdate: () => void
-  onScheduleSelect: (schedule: Schedule) => void
+  onScheduleSelect: (schedule: Schedule | null) => void
+  branchCode?: BranchCode
+  division?: Division
+  activeScheduleId?: string | null
 }
 
-export default function ScheduleManager({ employees, onUpdate, onScheduleSelect }: ScheduleManagerProps) {
+export default function ScheduleManager({ employees, onUpdate, onScheduleSelect, branchCode, division, activeScheduleId }: ScheduleManagerProps) {
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [isCreating, setIsCreating] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
@@ -34,12 +38,19 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
   })
 
   useEffect(() => {
-    const loadSchedules = async () => {
-      const schedules = await storage.getSchedules()
-      setSchedules(schedules)
-    }
     loadSchedules()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchCode, division])
+
+  const loadSchedules = async () => {
+    const all = await storage.getSchedules()
+    const filtered = all.filter(s => {
+      if (branchCode && s.branchCode && s.branchCode !== branchCode) return false
+      if (division && s.division && s.division !== division) return false
+      return true
+    })
+    setSchedules(filtered)
+  }
 
   useEffect(() => {
     if (!isContextMenuOpen) return
@@ -144,14 +155,49 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
 
     if (confirmed) {
       await storage.deleteSchedule(id)
-      const schedules = await storage.getSchedules()
-      setSchedules(schedules)
+      await loadSchedules()
+
+      // If the deleted schedule was active, update selection
+      if (activeScheduleId === id) {
+        if (schedules.length > 0) {
+          onScheduleSelect(schedules[0])
+        } else {
+          onScheduleSelect(null)
+        }
+      }
+
       onUpdate()
     }
   }
 
   const handleView = (schedule: Schedule) => {
     onScheduleSelect(schedule)
+  }
+
+  const handleClearAll = async () => {
+    const confirmed = await showDangerConfirm(
+      'Esto eliminará TODOS los horarios guardados. Esta acción no se puede deshacer.',
+      '⚠️ ADVERTENCIA',
+      'Sí, eliminar todo'
+    )
+
+    if (confirmed) {
+      await storage.clearAllSchedules()
+      setSchedules([])
+      onScheduleSelect(null)
+      onUpdate()
+    }
+  }
+
+  const handleExportAll = async () => {
+    try {
+      const timestamp = new Date().toISOString().split('T')[0]
+      const filename = `todos_los_horarios_${timestamp}.csv`
+      exportAllSchedulesToCSV(schedules, employees, filename)
+    } catch (error) {
+      console.error('Error exporting all schedules:', error)
+      showError('Error al exportar los horarios. Por favor, intenta de nuevo.')
+    }
   }
 
   return (
@@ -177,7 +223,28 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect 
 
         {isExpanded && (
           <div className="border-t p-6 space-y-6">
-            <div className="flex items-center justify-end">
+            <div className="flex items-center justify-between">
+              {schedules.length > 0 ? (
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={handleExportAll}
+                    className="text-xs text-gray-400 hover:text-primary-600 transition-colors flex items-center space-x-1"
+                    title="Exportar todos los horarios a CSV"
+                  >
+                    <Download className="h-3 w-3" />
+                    <span>Exportar todo</span>
+                  </button>
+                  <button
+                    onClick={handleClearAll}
+                    className="text-xs text-gray-400 hover:text-red-600 transition-colors flex items-center space-x-1"
+                    title="Limpiar todos los horarios"
+                  >
+                    <AlertTriangle className="h-3 w-3" />
+                    <span>Limpiar todo</span>
+                  </button>
+                </div>
+              ) : <div />}
+
               <button
                 onClick={() => {
                   if (leftClickBehavior === 'quick') {
