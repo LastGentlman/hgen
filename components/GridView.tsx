@@ -1724,15 +1724,20 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   const handleHeaderContextMenu = async (e: React.MouseEvent) => {
     e.preventDefault()
 
-    // Load inactive employees
-    const inactive = await storage.getInactiveEmployees()
-    setInactiveEmployees(inactive)
-
-    // Show menu
+    // Open menu immediately at click position
     setInactiveEmployeesMenu({
       isOpen: true,
       position: { x: e.clientX, y: e.clientY }
     })
+
+    // Try to load inactive employees; if it fails (e.g., missing Supabase), show empty list
+    try {
+      const inactive = await storage.getInactiveEmployees()
+      setInactiveEmployees(inactive)
+    } catch (error) {
+      console.warn('Could not load inactive employees. Falling back to empty list.', error)
+      setInactiveEmployees([])
+    }
   }
 
   const handleRestoreEmployee = async (employeeId: string) => {
