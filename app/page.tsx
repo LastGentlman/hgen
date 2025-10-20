@@ -19,6 +19,11 @@ const HistoryManager = dynamic(() => import('@/components/HistoryManager'), {
   ssr: false
 })
 
+const ScheduleManager = dynamic(() => import('@/components/ScheduleManager'), {
+  loading: () => <div className="flex items-center justify-center py-12"><div className="animate-pulse text-gray-500">Cargando...</div></div>,
+  ssr: false
+})
+
 const GridView = dynamic(() => import('@/components/GridView'), {
   loading: () => <div className="flex items-center justify-center py-12"><div className="animate-pulse text-gray-500">Cargando...</div></div>,
   ssr: false
@@ -366,14 +371,25 @@ export default function Home() {
         )}
 
         {activeTab === 'history' && (
-          <HistoryManager
-            onScheduleSelect={setActiveSchedule}
-            activeScheduleId={activeSchedule?.id || null}
-            branchCode={branchCode}
-            division={division}
-            onUpdate={handleScheduleUpdate}
-            onGoToGrid={() => setActiveTab('grid')}
-          />
+          <div className="space-y-6">
+            <ScheduleManager
+              employees={employees.filter(emp => emp.branchCode === branchCode && emp.division === division)}
+              onUpdate={handleScheduleUpdate}
+              onScheduleSelect={(s) => {
+                setActiveSchedule(s)
+                // Optionally navigate to grid after create
+              }}
+            />
+
+            <HistoryManager
+              onScheduleSelect={setActiveSchedule}
+              activeScheduleId={activeSchedule?.id || null}
+              branchCode={branchCode}
+              division={division}
+              onUpdate={handleScheduleUpdate}
+              onGoToGrid={() => setActiveTab('grid')}
+            />
+          </div>
         )}
 
         {activeTab === 'grid' && (
