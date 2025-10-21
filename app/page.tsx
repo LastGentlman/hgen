@@ -4,17 +4,12 @@ import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { Employee, Schedule, BranchCode, Division } from '@/types'
 import { storage } from '@/lib/storage'
-import { Users, Grid3x3, History, Menu } from 'lucide-react'
+import { Users, Grid3x3, Calendar, Menu } from 'lucide-react'
 import Breadcrumbs from '@/components/Breadcrumbs'
 import SyncIndicator from '@/components/SyncIndicator'
 
 // Lazy load tab components for better performance
 const EmployeeManager = dynamic(() => import('@/components/EmployeeManager'), {
-  loading: () => <div className="flex items-center justify-center py-12"><div className="animate-pulse text-gray-500">Cargando...</div></div>,
-  ssr: false
-})
-
-const HistoryManager = dynamic(() => import('@/components/HistoryManager'), {
   loading: () => <div className="flex items-center justify-center py-12"><div className="animate-pulse text-gray-500">Cargando...</div></div>,
   ssr: false
 })
@@ -29,7 +24,7 @@ const GridView = dynamic(() => import('@/components/GridView'), {
   ssr: false
 })
 
-type ActiveTab = 'employees' | 'history' | 'grid'
+type ActiveTab = 'employees' | 'manage' | 'grid'
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('grid')
@@ -116,7 +111,6 @@ export default function Home() {
     scheduleIdle(() => {
       // Warm up dynamic chunks for common tabs
       import('@/components/GridView')
-      import('@/components/HistoryManager')
       import('@/components/EmployeeManager')
     })
   }, [])
@@ -180,7 +174,7 @@ export default function Home() {
 
   const tabs = [
     { id: 'employees' as const, label: 'Empleados', icon: Users },
-    { id: 'history' as const, label: 'Historial', icon: History },
+    { id: 'manage' as const, label: 'Gestión', icon: Calendar },
     { id: 'grid' as const, label: 'Horario', icon: Grid3x3 }
   ]
 
@@ -264,9 +258,9 @@ export default function Home() {
               { label: 'Inicio', href: '/' },
               activeTab === 'employees'
                 ? { label: 'Empleados' }
-                : activeTab === 'history'
-                ? { label: 'Historial' }
-                    : { label: 'Horario' }
+                : activeTab === 'manage'
+                ? { label: 'Gestión' }
+                : { label: 'Horario' }
             ]}
           />
         </div>
@@ -316,13 +310,13 @@ export default function Home() {
                   <span>Empleados</span>
                 </button>
                 <button
-                  onClick={() => { setActiveTab('history'); setIsMenuOpen(false) }}
+                  onClick={() => { setActiveTab('manage'); setIsMenuOpen(false) }}
                   className={`flex items-center justify-center space-x-1 py-2 rounded border text-sm ${
-                    activeTab === 'history' ? 'bg-primary-50 text-primary-700 border-primary-200' : 'bg-white text-gray-700 border-gray-200'
+                    activeTab === 'manage' ? 'bg-primary-50 text-primary-700 border-primary-200' : 'bg-white text-gray-700 border-gray-200'
                   }`}
                 >
-                  <History className="h-4 w-4" />
-                  <span>Historial</span>
+                  <Calendar className="h-4 w-4" />
+                  <span>Gestión</span>
                 </button>
                 <button
                   onClick={() => { setActiveTab('grid'); setIsMenuOpen(false) }}
@@ -370,24 +364,22 @@ export default function Home() {
           <EmployeeManager onUpdate={handleEmployeeUpdate} branchCode={branchCode} division={division} />
         )}
 
-        {activeTab === 'history' && (
+        {activeTab === 'manage' && (
           <div className="space-y-6">
             <ScheduleManager
               employees={employees.filter(emp => emp.branchCode === branchCode && emp.division === division)}
-              onUpdate={handleScheduleUpdate}
-              onScheduleSelect={(s) => {
-                setActiveSchedule(s)
-                // Optionally navigate to grid after create
-              }}
-            />
-
-            <HistoryManager
-              onScheduleSelect={setActiveSchedule}
-              activeScheduleId={activeSchedule?.id || null}
               branchCode={branchCode}
               division={division}
               onUpdate={handleScheduleUpdate}
-              onGoToGrid={() => setActiveTab('grid')}
+              activeScheduleId={activeSchedule?.id || null}
+              onScheduleSelect={(s) => {
+                if (s) {
+                  setActiveSchedule(s)
+                } else {
+                  setActiveSchedule(null)
+                }
+                // Optionally navigate to grid after create
+              }}
             />
           </div>
         )}
