@@ -111,7 +111,6 @@ export default function Home() {
     scheduleIdle(() => {
       // Warm up dynamic chunks for common tabs
       import('@/components/GridView')
-      import('@/components/HistoryManager')
       import('@/components/EmployeeManager')
     })
   }, [])
