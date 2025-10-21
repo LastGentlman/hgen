@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Employee, Schedule, ShiftTemplate, BranchCode, Division } from '@/types'
 import { storage } from '@/lib/storage'
 import { generateWeeklySchedule, getDefaultShiftTemplates } from '@/lib/utils'
 import { Plus, Calendar, Edit2, Trash2, Eye, ChevronDown, ChevronUp, Download, AlertTriangle } from 'lucide-react'
 import { showLoading, closeAlert, showSuccess, showError } from '@/lib/sweetalert'
 import { showDangerConfirm } from '@/lib/sweetalert'
-import { exportAllSchedulesToCSV } from '@/lib/exportUtils'
+import { exportAllSchedulesToCSV, importFromCSV, importAllSchedulesFromCSV } from '@/lib/exportUtils'
 
 interface ScheduleManagerProps {
   employees: Employee[]
@@ -22,6 +22,7 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [isCreating, setIsCreating] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
+  const csvFileInputRef = useRef<HTMLInputElement>(null)
   const [formData, setFormData] = useState({
     name: '',
     startDate: ''
@@ -143,6 +144,61 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
       console.error(error)
       closeAlert()
       showError('No se pudo crear el horario. Intenta de nuevo.')
+    }
+  }
+
+  const handleImportFromCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (!files || files.length === 0) {
+      return
+    }
+
+    try {
+      showLoading('Importando CSV...', 'Procesando archivo(s) y creando horarios')
+
+      // Use ALL employees from storage for robust matching
+      const allEmployees = await storage.getEmployees()
+
+      const isMultipleFiles = files.length > 1
+      const silentMode = isMultipleFiles
+      let importedCount = 0
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const fileContent = await file.text()
+        const hasScheduleNameColumn = fileContent.toLowerCase().includes('nombrehorario')
+
+        if (hasScheduleNameColumn) {
+          // Multi-schedule CSV: may contain several schedules inside one file
+          const importedSchedules = await importAllSchedulesFromCSV(file, allEmployees, silentMode)
+          for (const imported of importedSchedules) {
+            imported.branchCode = branchCode || '001'
+            imported.division = division || 'super'
+            await storage.addSchedule(imported)
+            importedCount++
+          }
+        } else {
+          // Single schedule CSV
+          const scheduleFromFile = await importFromCSV(file, null, allEmployees, silentMode)
+          scheduleFromFile.branchCode = branchCode || '001'
+          scheduleFromFile.division = division || 'super'
+          await storage.addSchedule(scheduleFromFile)
+          importedCount++
+        }
+      }
+
+      await loadSchedules()
+      onUpdate()
+      closeAlert()
+      showSuccess(`${importedCount} horario(s) importado(s) correctamente.`, '¡Importación completada!')
+    } catch (error) {
+      console.error('[ScheduleManager] Error importing CSV:', error)
+      closeAlert()
+      showError('Error al importar CSV. Verifica el formato e intenta de nuevo.')
+    } finally {
+      if (csvFileInputRef.current) {
+        csvFileInputRef.current.value = ''
+      }
     }
   }
 
@@ -464,9 +520,17 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
                     <div className="text-sm font-semibold text-gray-800 mb-1">Importar CSV</div>
                     <p className="text-sm text-gray-600 mb-3">¿Ya tienes un horario? Súbelo y edítalo fácilmente.</p>
                     <button
-                      onClick={() => document.getElementById('global-import-csv-trigger')?.dispatchEvent(new Event('click', { bubbles: true }))}
+                      onClick={() => csvFileInputRef.current?.click()}
                       className="btn btn-secondary w-full"
                     >Importar</button>
+                    <input
+                      ref={csvFileInputRef}
+                      type="file"
+                      accept=".csv"
+                      multiple
+                      onChange={handleImportFromCSV}
+                      className="hidden"
+                    />
                   </div>
                   <div className="p-5 rounded-xl border-2 hover:shadow-md transition-all text-left">
                     <div className="text-sm font-semibold text-gray-800 mb-1">Usar plantilla</div>
