@@ -512,12 +512,6 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
       {/* Schedule List */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {schedules.map((schedule) => {
-          const totalShifts = schedule.days.reduce((sum, day) => sum + day.shifts.length, 0)
-          const assignedShifts = schedule.days.reduce(
-            (sum, day) => sum + day.shifts.filter(shift => shift.isAssigned).length,
-            0
-          )
-
           return (
             <div
               key={schedule.id}
@@ -553,20 +547,6 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
               </div>
 
               <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Progreso:</span>
-                  <span className="font-medium">
-                    {assignedShifts}/{totalShifts} turnos asignados
-                  </span>
-                </div>
-
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-primary-600 h-2 rounded-full transition-all"
-                    style={{ width: `${totalShifts > 0 ? (assignedShifts / totalShifts) * 100 : 0}%` }}
-                  />
-                </div>
-
                 <div className="text-xs text-gray-500">
                   Creado: {new Date(schedule.createdAt).toLocaleDateString('es-ES')}
                 </div>
