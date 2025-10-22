@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Employee, Schedule, ShiftTemplate, BranchCode, Division } from '@/types'
+import { Employee, Schedule, ShiftTemplate, BranchCode, Division, DayOfWeek } from '@/types'
 import { storage } from '@/lib/storage'
 import { generateWeeklySchedule, getDefaultShiftTemplates } from '@/lib/utils'
 import { Plus, Calendar, Edit2, Trash2, Eye, ChevronDown, ChevronUp, Download, AlertTriangle } from 'lucide-react'
@@ -29,6 +29,13 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
   })
   const [useGemini, setUseGemini] = useState(false)
   const [geminiNotes, setGeminiNotes] = useState('')
+  const [customizeTemplatesEnabled, setCustomizeTemplatesEnabled] = useState(false)
+  const [customT1Start, setCustomT1Start] = useState('07:00')
+  const [customT1End, setCustomT1End] = useState('15:00')
+  const [customT2Start, setCustomT2Start] = useState('15:00')
+  const [customT2End, setCustomT2End] = useState('23:00')
+  const [customT3Start, setCustomT3Start] = useState('23:00')
+  const [customT3End, setCustomT3End] = useState('07:00')
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null)
   type LeftClickBehavior = 'form' | 'quick'
@@ -87,7 +94,38 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
       showLoading('Creando horario...', useGemini ? 'Consultando Gemini AI para sugerir turnos…' : 'Generando turnos y guardando en tu dispositivo')
       let templates = getDefaultShiftTemplates()
 
-      if (useGemini) {
+      const isValidTime = (time: string): boolean => {
+        return /^([01]\d|2[0-3]):[0-5]\d$/.test(time)
+      }
+
+      const buildTemplatesFromTimes = (
+        t1s: string, t1e: string,
+        t2s: string, t2e: string,
+        t3s: string, t3e: string
+      ): ShiftTemplate[] => {
+        const days: DayOfWeek[] = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+        const all: ShiftTemplate[] = []
+        days.forEach((d) => {
+          all.push(
+            { startTime: t1s, endTime: t1e, dayOfWeek: d },
+            { startTime: t2s, endTime: t2e, dayOfWeek: d },
+            { startTime: t3s, endTime: t3e, dayOfWeek: d },
+          )
+        })
+        return all
+      }
+
+      if (customizeTemplatesEnabled) {
+        const allTimesValid = [customT1Start, customT1End, customT2Start, customT2End, customT3Start, customT3End].every(isValidTime)
+        if (!allTimesValid) {
+          closeAlert()
+          showError('Formato de hora inválido. Usa HH:MM en 24 horas.')
+          return
+        }
+        templates = buildTemplatesFromTimes(customT1Start, customT1End, customT2Start, customT2End, customT3Start, customT3End)
+      }
+
+      if (useGemini && !customizeTemplatesEnabled) {
         try {
           const resp = await fetch('/api/gemini/suggest', {
             method: 'POST',
@@ -370,9 +408,9 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
             <h4 className="font-medium text-gray-900 mb-2">Plantilla de horario por defecto (ciclo de 15 días)</h4>
             <div className="text-sm text-gray-600 space-y-1">
               <p><strong>Operación 24/7:</strong> 3 turnos por día, todos los días</p>
-              <p><strong>Turno Mañana:</strong> 06:00 - 14:00</p>
-              <p><strong>Turno Tarde:</strong> 14:00 - 22:00</p>
-              <p><strong>Turno Noche:</strong> 22:00 - 06:00</p>
+              <p><strong>Turno Mañana (T1):</strong> 07:00 - 15:00</p>
+              <p><strong>Turno Tarde (T2):</strong> 15:00 - 23:00</p>
+              <p><strong>Turno Noche (T3):</strong> 23:00 - 07:00</p>
             </div>
             <p className="text-xs text-gray-500 mt-2">
               El horario dura 15 días consecutivos. Puedes personalizar los turnos después de crear el horario.
@@ -383,6 +421,7 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
                   type="checkbox"
                   checked={useGemini}
                   onChange={(e) => setUseGemini(e.target.checked)}
+                  disabled={customizeTemplatesEnabled}
                 />
                 <span className="text-sm text-gray-800">Usar Gemini AI para sugerir plantillas (opcional)</span>
               </label>
@@ -398,6 +437,60 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
                   <p className="text-xs text-gray-500 mt-1">Si no hay clave de Gemini configurada o falla la consulta, se usarán las plantillas por defecto.</p>
                 </div>
               )}
+
+              <div className="mt-3 pt-3 border-t">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={customizeTemplatesEnabled}
+                    onChange={(e) => {
+                      setCustomizeTemplatesEnabled(e.target.checked)
+                      if (e.target.checked) setUseGemini(false)
+                    }}
+                  />
+                  <span className="text-sm text-gray-800">Editar turnos por defecto antes de crear</span>
+                </label>
+                {customizeTemplatesEnabled && (
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-3 rounded-md border bg-gray-50">
+                      <div className="text-sm font-medium mb-2">T1 — Mañana</div>
+                      <div className="flex items-center space-x-2">
+                        <input type="time" className="input" value={customT1Start} onChange={(e) => setCustomT1Start(e.target.value)} />
+                        <span className="text-gray-500">a</span>
+                        <input type="time" className="input" value={customT1End} onChange={(e) => setCustomT1End(e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-md border bg-gray-50">
+                      <div className="text-sm font-medium mb-2">T2 — Tarde</div>
+                      <div className="flex items-center space-x-2">
+                        <input type="time" className="input" value={customT2Start} onChange={(e) => setCustomT2Start(e.target.value)} />
+                        <span className="text-gray-500">a</span>
+                        <input type="time" className="input" value={customT2End} onChange={(e) => setCustomT2End(e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-md border bg-gray-50">
+                      <div className="text-sm font-medium mb-2">T3 — Noche</div>
+                      <div className="flex items-center space-x-2">
+                        <input type="time" className="input" value={customT3Start} onChange={(e) => setCustomT3Start(e.target.value)} />
+                        <span className="text-gray-500">a</span>
+                        <input type="time" className="input" value={customT3End} onChange={(e) => setCustomT3End(e.target.value)} />
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500">Los turnos nocturnos pueden cruzar medianoche.</p>
+                    </div>
+                    <div className="md:col-span-3 flex justify-end">
+                      <button
+                        type="button"
+                        className="btn btn-secondary text-xs"
+                        onClick={() => {
+                          setCustomT1Start('07:00'); setCustomT1End('15:00');
+                          setCustomT2Start('15:00'); setCustomT2End('23:00');
+                          setCustomT3Start('23:00'); setCustomT3End('07:00');
+                        }}
+                      >Restablecer valores por defecto</button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
