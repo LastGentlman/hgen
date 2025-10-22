@@ -226,19 +226,7 @@ export default function ScheduleView({ schedule, employees, schedules, onSchedul
         </div>
       )}
 
-      {/* Progress Bar */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-gray-700">Progreso de asignación</span>
-          <span className="text-sm text-gray-600">{assignedShifts} de {totalShifts} turnos</span>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-3">
-          <div
-            className="bg-primary-600 h-3 rounded-full transition-all"
-            style={{ width: `${totalShifts > 0 ? (assignedShifts / totalShifts) * 100 : 0}%` }}
-          />
-        </div>
-      </div>
+      {/* Removed visual progress bar by request */}
 
       {/* Schedule Grid */}
       <div ref={scheduleRef} className="space-y-4">
