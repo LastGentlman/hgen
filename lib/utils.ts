@@ -135,9 +135,9 @@ export function getDefaultShiftTemplates(): ShiftTemplate[] {
   // Create 3 shifts for each day (24/7 operation)
   dayNames.forEach(day => {
     shifts.push(
-      { startTime: '06:00', endTime: '14:00', dayOfWeek: day },
-      { startTime: '14:00', endTime: '22:00', dayOfWeek: day },
-      { startTime: '22:00', endTime: '06:00', dayOfWeek: day }
+      { startTime: '07:00', endTime: '15:00', dayOfWeek: day },
+      { startTime: '15:00', endTime: '23:00', dayOfWeek: day },
+      { startTime: '23:00', endTime: '07:00', dayOfWeek: day }
     )
   })
 
