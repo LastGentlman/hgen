@@ -625,11 +625,6 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
                       className="hidden"
                     />
                   </div>
-                  <div className="p-5 rounded-xl border-2 hover:shadow-md transition-all text-left">
-                    <div className="text-sm font-semibold text-gray-800 mb-1">Usar plantilla</div>
-                    <p className="text-sm text-gray-600 mb-3">Duplica un horario anterior y ajústalo.</p>
-                    <button onClick={() => setIsExpanded(true)} className="btn w-full">Ver plantillas</button>
-                  </div>
                 </div>
               </div>
             )}
