@@ -2761,44 +2761,59 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
   if (!schedule) {
     return (
-      <div className="card text-center py-12">
-        <div className="max-w-md mx-auto space-y-4">
-          <Calendar className="h-16 w-16 text-gray-400 mx-auto" />
-          <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No hay horario seleccionado</h3>
-            <p className="text-gray-600 mb-4">
-              Selecciona un horario desde el historial o crea uno nuevo para la quincena actual.
-            </p>
+      <>
+        {isCreateDialogOpen && (
+          <CreateScheduleDialog
+            isOpen={isCreateDialogOpen}
+            onClose={() => setIsCreateDialogOpen(false)}
+            branchCode={(branchCode || '001') as any}
+            division={(division || 'super') as any}
+            employees={employees}
+            onCreated={async () => {
+              await onUpdate()
+              setIsCreateDialogOpen(false)
+            }}
+          />
+        )}
+        <div className="card text-center py-12">
+          <div className="max-w-md mx-auto space-y-4">
+            <Calendar className="h-16 w-16 text-gray-400 mx-auto" />
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No hay horario seleccionado</h3>
+              <p className="text-gray-600 mb-4">
+                Selecciona un horario desde el historial o crea uno nuevo para la quincena actual.
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={() => setIsCreateDialogOpen(true)}
+                title={"Crear horario para la siguiente quincena disponible"}
+                className="btn btn-primary inline-flex items-center space-x-2 interactive"
+              >
+                <Plus className="h-5 w-5" />
+                <span>Crear Nuevo Horario</span>
+              </button>
+              <button
+                onClick={() => csvFileInputRef.current?.click()}
+                className="btn btn-secondary inline-flex items-center space-x-2 interactive"
+              >
+                <Upload className="h-5 w-5" />
+                <span>Importar CSV</span>
+              </button>
+              <input
+                ref={csvFileInputRef}
+                type="file"
+                accept=".csv"
+                multiple
+                onChange={handleImportFromCSV}
+                className="hidden"
+              />
+            </div>
+            {/* Hidden global trigger so other components can open the file input */}
+            <button id="global-import-csv-trigger" onClick={() => csvFileInputRef.current?.click()} className="hidden" aria-hidden="true" />
           </div>
-          <div className="flex items-center justify-center gap-3">
-            <button
-              onClick={() => setIsCreateDialogOpen(true)}
-              title={"Crear horario para la siguiente quincena disponible"}
-              className="btn btn-primary inline-flex items-center space-x-2 interactive"
-            >
-              <Plus className="h-5 w-5" />
-              <span>Crear Nuevo Horario</span>
-            </button>
-            <button
-              onClick={() => csvFileInputRef.current?.click()}
-              className="btn btn-secondary inline-flex items-center space-x-2 interactive"
-            >
-              <Upload className="h-5 w-5" />
-              <span>Importar CSV</span>
-            </button>
-            <input
-              ref={csvFileInputRef}
-              type="file"
-              accept=".csv"
-              multiple
-              onChange={handleImportFromCSV}
-              className="hidden"
-            />
-          </div>
-          {/* Hidden global trigger so other components can open the file input */}
-          <button id="global-import-csv-trigger" onClick={() => csvFileInputRef.current?.click()} className="hidden" aria-hidden="true" />
         </div>
-      </div>
+      </>
     )
   }
 
