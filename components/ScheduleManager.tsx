@@ -339,25 +339,26 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
                 </div>
               ) : <div />}
 
-              <button
-                onClick={() => {
-                  if (leftClickBehavior === 'quick') {
-                    handleQuickCreate()
-                  } else {
-                    handleCreate()
-                  }
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault()
-                  setIsContextMenuOpen(true)
-                  setContextMenuPos({ x: e.clientX, y: e.clientY })
-                }}
-                className="btn btn-primary flex items-center space-x-2"
-                disabled={isCreating}
-              >
-                <Plus className="h-5 w-5" />
-                <span>Crear horario</span>
-              </button>
+              {!isCreating && (
+                <button
+                  onClick={() => {
+                    if (leftClickBehavior === 'quick') {
+                      handleQuickCreate()
+                    } else {
+                      handleCreate()
+                    }
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault()
+                    setIsContextMenuOpen(true)
+                    setContextMenuPos({ x: e.clientX, y: e.clientY })
+                  }}
+                  className="btn btn-primary flex items-center space-x-2"
+                >
+                  <Plus className="h-5 w-5" />
+                  <span>Crear horario</span>
+                </button>
+              )}
             </div>
 
             {employees.length === 0 && (
