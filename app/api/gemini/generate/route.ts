@@ -3,6 +3,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { Employee, Schedule, ScheduleDay, Shift, BranchCode, Division } from '@/types'
 import { storage } from '@/lib/storage'
 import { generateId } from '@/lib/utils'
+import { promises as fs } from 'fs'
+import path from 'path'
 
 export const maxDuration = 40
 
@@ -218,6 +220,32 @@ export async function POST(req: NextRequest) {
 
     const locale = (body.locale || 'es') as 'es' | 'en'
 
+    // Read repository-level rules file if present
+    let rulesMd = ''
+    try {
+      const rulesPath = path.join(process.cwd(), 'AI_SCHEDULING_RULES.md')
+      rulesMd = await fs.readFile(rulesPath, 'utf8')
+    } catch {
+      rulesMd = ''
+    }
+
+    const defaultRulesEs = [
+      'REGLAS BASE:',
+      '- 3 asignaciones por día: mañana, tarde, noche.',
+      '- Respeta disponibilidad (availableDays) por nombre del día.',
+      '- Evita noches consecutivas para la misma persona; reparte equitativamente.',
+      '- Usa assignedShift como preferencia, no como obligación rígida.',
+      '- No asignes a la misma persona 2 turnos el mismo día.',
+    ].join('\n')
+    const defaultRulesEn = [
+      'BASE RULES:',
+      '- 3 assignments per day: morning, afternoon, night.',
+      '- Respect availability (availableDays) by day name.',
+      '- Avoid consecutive nights for the same person; distribute fairly.',
+      '- Prefer assignedShift but do not force it rigidly.',
+      '- Do not assign the same person twice on the same day.',
+    ].join('\n')
+
     const prompt = [
       locale === 'es'
         ? 'Eres un asistente experto creando horarios de 15 días para una operación 24/7 con 3 turnos diarios (Mañana, Tarde, Noche).'
@@ -225,9 +253,9 @@ export async function POST(req: NextRequest) {
       locale === 'es'
         ? 'Usa el contexto (empleados y horarios previos) para generar un NUEVO horario completo, lo más cercano a cómo lo haría un humano.'
         : 'Use the context (employees and prior schedules) to generate a NEW full schedule as a human would.',
-      locale === 'es'
-        ? 'REGLAS: 1) 3 asignaciones por día (mañana, tarde, noche). 2) Respeta disponibilidad (availableDays) por nombre del día. 3) Evita noches consecutivas para la misma persona y distribuye equitativamente. 4) Usa assignedShift como preferencia. 5) No asignes a la misma persona 2 turnos el mismo día.'
-        : 'RULES: 1) 3 assignments per day (morning, afternoon, night). 2) Respect availability (availableDays) by day name. 3) Avoid consecutive nights for the same person and distribute fairly. 4) Use assignedShift as a preference. 5) Do not assign the same person to 2 shifts on the same day.',
+      rulesMd
+        ? (locale === 'es' ? 'REGLAS PERSONALIZADAS (desde AI_SCHEDULING_RULES.md):\n' + rulesMd : 'CUSTOM RULES (from AI_SCHEDULING_RULES.md):\n' + rulesMd)
+        : (locale === 'es' ? defaultRulesEs : defaultRulesEn),
       locale === 'es'
         ? 'DEVUELVE SOLO JSON válido con la forma {"days":[{"date":"YYYY-MM-DD","assignments":[{"turn":"morning|afternoon|night","employeeId":"<uuid>","position":"C1|C2|C3|EXT"?}]}],"notes"?:string}. Usa EXCLUSIVAMENTE employeeId de la lista.'
         : 'RETURN ONLY valid JSON shaped as {"days":[{"date":"YYYY-MM-DD","assignments":[{"turn":"morning|afternoon|night","employeeId":"<uuid>","position":"C1|C2|C3|EXT"?}]}],"notes"?:string}. Use ONLY employeeId from the list.',

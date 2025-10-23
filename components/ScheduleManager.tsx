@@ -446,6 +446,9 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
                     onChange={(e) => setGeminiNotes(e.target.value)}
                   />
                   <p className="text-xs text-gray-500 mt-1">Si no hay clave de Gemini o falla la consulta, se usará el esquema por defecto.</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Tip: Puedes editar reglas globales de IA en <code>AI_SCHEDULING_RULES.md</code>.
+                  </p>
                 </div>
               )}
 
