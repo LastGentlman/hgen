@@ -65,6 +65,9 @@ CREATE TABLE IF NOT EXISTS schedule_metrics (
   edit_count INTEGER DEFAULT 0,
   completion_time_minutes INTEGER,
   user_satisfaction INTEGER CHECK (user_satisfaction BETWEEN 1 AND 5),
+  -- Campos opcionales para telemetría de creación
+  creation_source TEXT CHECK (creation_source IN ('rotation','ai','template')),
+  shift_preset TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

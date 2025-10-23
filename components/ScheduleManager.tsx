@@ -5,7 +5,9 @@ import { Employee, Schedule, ShiftTemplate, BranchCode, Division, DayOfWeek } fr
 import { storage } from '@/lib/storage'
 import { generateWeeklySchedule, getDefaultShiftTemplates } from '@/lib/utils'
 import { Plus, Calendar, Edit2, Trash2, Eye, ChevronDown, ChevronUp, Download, AlertTriangle } from 'lucide-react'
-import { showLoading, closeAlert, showSuccess, showError } from '@/lib/sweetalert'
+import dynamic from 'next/dynamic'
+const CreateScheduleDialog = dynamic(() => import('@/components/CreateScheduleDialog'), { ssr: false })
+import { showLoading, closeAlert, showSuccess, showError, showConfirm } from '@/lib/sweetalert'
 import { showDangerConfirm } from '@/lib/sweetalert'
 import { exportAllSchedulesToCSV, importFromCSV, importAllSchedulesFromCSV } from '@/lib/exportUtils'
 
@@ -20,22 +22,12 @@ interface ScheduleManagerProps {
 
 export default function ScheduleManager({ employees, onUpdate, onScheduleSelect, branchCode, division, activeScheduleId }: ScheduleManagerProps) {
   const [schedules, setSchedules] = useState<Schedule[]>([])
-  const [isCreating, setIsCreating] = useState(false)
+  const [isCreating, setIsCreating] = useState(false) // legacy toggle (kept for layout conditions)
+  const [isUnifiedDialogOpen, setIsUnifiedDialogOpen] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const csvFileInputRef = useRef<HTMLInputElement>(null)
-  const [formData, setFormData] = useState({
-    name: '',
-    startDate: ''
-  })
-  const [useGemini, setUseGemini] = useState(false)
-  const [geminiNotes, setGeminiNotes] = useState('')
-  const [customizeTemplatesEnabled, setCustomizeTemplatesEnabled] = useState(false)
-  const [customT1Start, setCustomT1Start] = useState('07:00')
-  const [customT1End, setCustomT1End] = useState('15:00')
-  const [customT2Start, setCustomT2Start] = useState('15:00')
-  const [customT2End, setCustomT2End] = useState('23:00')
-  const [customT3Start, setCustomT3Start] = useState('23:00')
-  const [customT3End, setCustomT3End] = useState('07:00')
+  const [formData, setFormData] = useState({ name: '', startDate: '' }) // legacy
+  // Legacy form state removed in favor of unified dialog
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null)
   type LeftClickBehavior = 'form' | 'quick'
@@ -78,94 +70,11 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
   }, [leftClickBehavior])
 
   const handleCreate = () => {
-    setIsCreating(true)
-    const today = new Date()
-
-    setFormData({
-      name: `Horario de 15 días - ${today.toLocaleDateString('es-ES')}`,
-      startDate: today.toISOString().split('T')[0]
-    })
+    // Abrir flujo unificado
+    setIsUnifiedDialogOpen(true)
   }
 
-  const handleSave = async () => {
-    if (!formData.name.trim() || !formData.startDate) return
-
-    try {
-      showLoading('Creando horario...', useGemini ? 'Consultando Gemini AI para generar el horario…' : 'Generando turnos y guardando en tu dispositivo')
-      let templates = getDefaultShiftTemplates()
-      let scheduleFromAI: Schedule | null = null
-
-      const isValidTime = (time: string): boolean => {
-        return /^([01]\d|2[0-3]):[0-5]\d$/.test(time)
-      }
-
-      const buildTemplatesFromTimes = (
-        t1s: string, t1e: string,
-        t2s: string, t2e: string,
-        t3s: string, t3e: string
-      ): ShiftTemplate[] => {
-        const days: DayOfWeek[] = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
-        const all: ShiftTemplate[] = []
-        days.forEach((d) => {
-          all.push(
-            { startTime: t1s, endTime: t1e, dayOfWeek: d },
-            { startTime: t2s, endTime: t2e, dayOfWeek: d },
-            { startTime: t3s, endTime: t3e, dayOfWeek: d },
-          )
-        })
-        return all
-      }
-
-      if (customizeTemplatesEnabled) {
-        const allTimesValid = [customT1Start, customT1End, customT2Start, customT2End, customT3Start, customT3End].every(isValidTime)
-        if (!allTimesValid) {
-          closeAlert()
-          showError('Formato de hora inválido. Usa HH:MM en 24 horas.')
-          return
-        }
-        templates = buildTemplatesFromTimes(customT1Start, customT1End, customT2Start, customT2End, customT3Start, customT3End)
-      }
-
-      if (useGemini && !customizeTemplatesEnabled) {
-        try {
-          const resp = await fetch('/api/gemini/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              startDate: formData.startDate,
-              name: formData.name.trim(),
-              branchCode: branchCode || undefined,
-              division: division || undefined,
-              instructions: geminiNotes?.trim() || undefined,
-            })
-          })
-          const data = await resp.json()
-          if (data?.ok && data?.data?.schedule) {
-            scheduleFromAI = data.data.schedule as Schedule
-          }
-        } catch (e) {
-          console.warn('Gemini generate failed, falling back to defaults', e)
-        }
-      }
-
-      const schedule = scheduleFromAI ?? generateWeeklySchedule(formData.startDate, formData.name.trim(), templates)
-      if (!schedule.branchCode && branchCode) schedule.branchCode = branchCode
-      if (!schedule.division && division) schedule.division = division
-
-      await storage.addSchedule(schedule)
-      const schedules = await storage.getSchedules()
-      setSchedules(schedules)
-      setIsCreating(false)
-      setFormData({ name: '', startDate: '' })
-      onUpdate()
-      closeAlert()
-      showSuccess('El horario se creó correctamente.', '¡Horario creado!')
-    } catch (error) {
-      console.error(error)
-      closeAlert()
-      showError('No se pudo crear el horario. Intenta de nuevo.')
-    }
-  }
+  // handleSave eliminado: ahora usamos el diálogo unificado
 
   const handleCancel = () => {
     setIsCreating(false)
@@ -173,26 +82,8 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
   }
 
   const handleQuickCreate = async () => {
-    try {
-      const today = new Date()
-      const name = `Horario rápido - ${today.toLocaleDateString('es-ES')}`
-      const startDate = today.toISOString().split('T')[0]
-      showLoading('Creando horario...', 'Generando turnos y guardando en tu dispositivo')
-      const templates = getDefaultShiftTemplates()
-      const schedule = generateWeeklySchedule(startDate, name.trim(), templates)
-      await storage.addSchedule(schedule)
-      const schedules = await storage.getSchedules()
-      setSchedules(schedules)
-      setIsCreating(false)
-      setFormData({ name: '', startDate: '' })
-      onUpdate()
-      closeAlert()
-      showSuccess('El horario se creó correctamente.', '¡Horario creado!')
-    } catch (error) {
-      console.error(error)
-      closeAlert()
-      showError('No se pudo crear el horario. Intenta de nuevo.')
-    }
+    // Atajo: abre el diálogo con valores precargados (flujo único)
+    setIsUnifiedDialogOpen(true)
   }
 
   const handleImportFromCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -222,6 +113,19 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
           for (const imported of importedSchedules) {
             imported.branchCode = branchCode || '001'
             imported.division = division || 'super'
+            // Duplicate handling: ask to replace if same period/context exists
+            const all = await storage.getSchedules()
+            const existing = all.find(s => s.startDate === imported.startDate && (s.branchCode || '001') === imported.branchCode && (s.division || 'super') === imported.division)
+            if (existing) {
+              const confirmed = await showConfirm(
+                `Ya existe un horario para esta quincena en Sucursal ${imported.branchCode} / ${imported.division}. ¿Deseas reemplazarlo?`,
+                'Horario existente',
+                'Reemplazar',
+                'Cancelar'
+              )
+              if (!confirmed) continue
+              await storage.deleteSchedule(existing.id)
+            }
             await storage.addSchedule(imported)
             importedCount++
           }
@@ -230,6 +134,21 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
           const scheduleFromFile = await importFromCSV(file, null, allEmployees, silentMode)
           scheduleFromFile.branchCode = branchCode || '001'
           scheduleFromFile.division = division || 'super'
+          // Duplicate handling: ask to replace if same period/context exists
+          const all = await storage.getSchedules()
+          const existing = all.find(s => s.startDate === scheduleFromFile.startDate && (s.branchCode || '001') === scheduleFromFile.branchCode && (s.division || 'super') === scheduleFromFile.division)
+          if (existing) {
+            const confirmed = await showConfirm(
+              `Ya existe un horario para esta quincena en Sucursal ${scheduleFromFile.branchCode} / ${scheduleFromFile.division}. ¿Deseas reemplazarlo?`,
+              'Horario existente',
+              'Reemplazar',
+              'Cancelar'
+            )
+            if (!confirmed) {
+              continue
+            }
+            await storage.deleteSchedule(existing.id)
+          }
           await storage.addSchedule(scheduleFromFile)
           importedCount++
         }
@@ -383,145 +302,7 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
               </div>
             )}
 
-      {/* Create Form */}
-      {isCreating && (
-        <div className="card">
-          <h3 className="text-lg font-medium mb-4">Crear nuevo horario</h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nombre del horario *
-              </label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="input"
-                placeholder="Ingresa el nombre del horario"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Fecha de inicio *
-              </label>
-              <input
-                type="date"
-                value={formData.startDate}
-                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                className="input"
-              />
-            </div>
-          </div>
-
-          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-            <h4 className="font-medium text-gray-900 mb-2">Plantilla de horario por defecto (ciclo de 15 días)</h4>
-            <div className="text-sm text-gray-600 space-y-1">
-              <p><strong>Operación 24/7:</strong> 3 turnos por día, todos los días</p>
-              <p><strong>Turno Mañana (T1):</strong> 07:00 - 15:00</p>
-              <p><strong>Turno Tarde (T2):</strong> 15:00 - 23:00</p>
-              <p><strong>Turno Noche (T3):</strong> 23:00 - 07:00</p>
-            </div>
-            <p className="text-xs text-gray-500 mt-2">
-              El horario dura 15 días consecutivos. Puedes personalizar los turnos después de crear el horario.
-            </p>
-            <div className="mt-4 p-3 border rounded-md bg-white space-y-2">
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={useGemini}
-                  onChange={(e) => setUseGemini(e.target.checked)}
-                  disabled={customizeTemplatesEnabled}
-                />
-                <span className="text-sm text-gray-800">Usar Gemini AI para generar el horario (opcional)</span>
-              </label>
-              {useGemini && (
-                <div>
-                  <label className="block text-sm text-gray-700 mb-1">Instrucciones para Gemini (opcional)</label>
-                  <textarea
-                    className="input min-h-[80px]"
-                    placeholder="Ej. Equilibrar noches, respetar disponibilidad, priorizar turnos asignados, etc."
-                    value={geminiNotes}
-                    onChange={(e) => setGeminiNotes(e.target.value)}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Si no hay clave de Gemini o falla la consulta, se usará el esquema por defecto.</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Tip: Puedes editar reglas globales de IA en <code>AI_SCHEDULING_RULES.md</code>.
-                  </p>
-                </div>
-              )}
-
-              <div className="mt-3 pt-3 border-t">
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={customizeTemplatesEnabled}
-                    onChange={(e) => {
-                      setCustomizeTemplatesEnabled(e.target.checked)
-                      if (e.target.checked) setUseGemini(false)
-                    }}
-                  />
-                  <span className="text-sm text-gray-800">Editar turnos por defecto antes de crear</span>
-                </label>
-                {customizeTemplatesEnabled && (
-                  <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="p-3 rounded-md border bg-gray-50">
-                      <div className="text-sm font-medium mb-2">T1 — Mañana</div>
-                      <div className="flex items-center space-x-2">
-                        <input type="time" className="input" value={customT1Start} onChange={(e) => setCustomT1Start(e.target.value)} />
-                        <span className="text-gray-500">a</span>
-                        <input type="time" className="input" value={customT1End} onChange={(e) => setCustomT1End(e.target.value)} />
-                      </div>
-                    </div>
-                    <div className="p-3 rounded-md border bg-gray-50">
-                      <div className="text-sm font-medium mb-2">T2 — Tarde</div>
-                      <div className="flex items-center space-x-2">
-                        <input type="time" className="input" value={customT2Start} onChange={(e) => setCustomT2Start(e.target.value)} />
-                        <span className="text-gray-500">a</span>
-                        <input type="time" className="input" value={customT2End} onChange={(e) => setCustomT2End(e.target.value)} />
-                      </div>
-                    </div>
-                    <div className="p-3 rounded-md border bg-gray-50">
-                      <div className="text-sm font-medium mb-2">T3 — Noche</div>
-                      <div className="flex items-center space-x-2">
-                        <input type="time" className="input" value={customT3Start} onChange={(e) => setCustomT3Start(e.target.value)} />
-                        <span className="text-gray-500">a</span>
-                        <input type="time" className="input" value={customT3End} onChange={(e) => setCustomT3End(e.target.value)} />
-                      </div>
-                      <p className="mt-1 text-xs text-gray-500">Los turnos nocturnos pueden cruzar medianoche.</p>
-                    </div>
-                    <div className="md:col-span-3 flex justify-end">
-                      <button
-                        type="button"
-                        className="btn btn-secondary text-xs"
-                        onClick={() => {
-                          setCustomT1Start('07:00'); setCustomT1End('15:00');
-                          setCustomT2Start('15:00'); setCustomT2End('23:00');
-                          setCustomT3Start('23:00'); setCustomT3End('07:00');
-                        }}
-                      >Restablecer valores por defecto</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-3 mt-6">
-            <button
-              onClick={handleSave}
-              className="btn btn-primary"
-              disabled={!formData.name.trim() || !formData.startDate}
-            >
-              Crear horario
-            </button>
-            <button onClick={handleCancel} className="btn btn-secondary">
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Formulario legacy eliminado en favor del diálogo unificado */}
 
       {/* Schedule List */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -678,6 +459,22 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
             {leftClickBehavior === 'quick' ? '✓ ' : ''}Crear rápido
           </button>
         </div>
+      )}
+      {/* Unified Create Schedule Dialog */}
+      {isUnifiedDialogOpen && (
+        <CreateScheduleDialog
+          isOpen={isUnifiedDialogOpen}
+          onClose={() => setIsUnifiedDialogOpen(false)}
+          branchCode={branchCode || '001'}
+          division={division || 'super'}
+          employees={employees}
+          onCreated={async (s) => {
+            await loadSchedules()
+            onUpdate()
+            onScheduleSelect(s)
+            setIsUnifiedDialogOpen(false)
+          }}
+        />
       )}
     </div>
   )
