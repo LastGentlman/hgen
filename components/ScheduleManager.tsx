@@ -91,8 +91,9 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
     if (!formData.name.trim() || !formData.startDate) return
 
     try {
-      showLoading('Creando horario...', useGemini ? 'Consultando Gemini AI para sugerir turnos…' : 'Generando turnos y guardando en tu dispositivo')
+      showLoading('Creando horario...', useGemini ? 'Consultando Gemini AI para generar el horario…' : 'Generando turnos y guardando en tu dispositivo')
       let templates = getDefaultShiftTemplates()
+      let scheduleFromAI: Schedule | null = null
 
       const isValidTime = (time: string): boolean => {
         return /^([01]\d|2[0-3]):[0-5]\d$/.test(time)
@@ -127,20 +128,29 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
 
       if (useGemini && !customizeTemplatesEnabled) {
         try {
-          const resp = await fetch('/api/gemini/suggest', {
+          const resp = await fetch('/api/gemini/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ instructions: geminiNotes?.trim() || undefined })
+            body: JSON.stringify({
+              startDate: formData.startDate,
+              name: formData.name.trim(),
+              branchCode: branchCode || undefined,
+              division: division || undefined,
+              instructions: geminiNotes?.trim() || undefined,
+            })
           })
           const data = await resp.json()
-          if (data?.ok && Array.isArray(data?.data?.shiftTemplates) && data.data.shiftTemplates.length > 0) {
-            templates = data.data.shiftTemplates
+          if (data?.ok && data?.data?.schedule) {
+            scheduleFromAI = data.data.schedule as Schedule
           }
         } catch (e) {
-          console.warn('Gemini suggest failed, using defaults', e)
+          console.warn('Gemini generate failed, falling back to defaults', e)
         }
       }
-      const schedule = generateWeeklySchedule(formData.startDate, formData.name.trim(), templates)
+
+      const schedule = scheduleFromAI ?? generateWeeklySchedule(formData.startDate, formData.name.trim(), templates)
+      if (!schedule.branchCode && branchCode) schedule.branchCode = branchCode
+      if (!schedule.division && division) schedule.division = division
 
       await storage.addSchedule(schedule)
       const schedules = await storage.getSchedules()
@@ -424,18 +434,21 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
                   onChange={(e) => setUseGemini(e.target.checked)}
                   disabled={customizeTemplatesEnabled}
                 />
-                <span className="text-sm text-gray-800">Usar Gemini AI para sugerir plantillas (opcional)</span>
+                <span className="text-sm text-gray-800">Usar Gemini AI para generar el horario (opcional)</span>
               </label>
               {useGemini && (
                 <div>
                   <label className="block text-sm text-gray-700 mb-1">Instrucciones para Gemini (opcional)</label>
                   <textarea
                     className="input min-h-[80px]"
-                    placeholder="Ej. Prefiere inicio de mañana 06:00, evita noches consecutivas, etc."
+                    placeholder="Ej. Equilibrar noches, respetar disponibilidad, priorizar turnos asignados, etc."
                     value={geminiNotes}
                     onChange={(e) => setGeminiNotes(e.target.value)}
                   />
-                  <p className="text-xs text-gray-500 mt-1">Si no hay clave de Gemini configurada o falla la consulta, se usarán las plantillas por defecto.</p>
+                  <p className="text-xs text-gray-500 mt-1">Si no hay clave de Gemini o falla la consulta, se usará el esquema por defecto.</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Tip: Puedes editar reglas globales de IA en <code>AI_SCHEDULING_RULES.md</code>.
+                  </p>
                 </div>
               )}
 
