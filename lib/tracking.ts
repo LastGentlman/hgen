@@ -194,3 +194,38 @@ export async function recordScheduleMetrics(
     console.error('Exception recording schedule metrics:', error)
   }
 }
+
+/**
+ * Registra metadatos de creación de un horario.
+ * No es crítico: si falla (por esquema desactualizado), se ignora.
+ */
+export async function recordScheduleCreationMeta(
+  scheduleId: string,
+  creationSource: 'rotation' | 'ai' | 'template',
+  shiftPreset: string,
+  totalShifts: number,
+  assignedShifts: number
+): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from('schedule_metrics')
+      .insert([
+        {
+          schedule_id: scheduleId,
+          total_shifts: totalShifts,
+          assigned_shifts: assignedShifts,
+          edit_count: 0,
+          // Campos opcionales (pueden no existir aún en BD)
+          creation_source: creationSource as any,
+          shift_preset: shiftPreset as any,
+        } as any,
+      ])
+
+    if (error) {
+      // Silencioso: no bloquear flujo de creación por telemetría
+      console.warn('recordScheduleCreationMeta failed:', error.message)
+    }
+  } catch (error) {
+    console.warn('recordScheduleCreationMeta exception:', error)
+  }
+}

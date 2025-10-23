@@ -7,6 +7,8 @@ import { formatTime, generateWeeklySchedule, getDefaultShiftTemplates, parseLoca
 import { exportToPDF, exportToCSV, importFromCSV, importAllSchedulesFromCSV } from '@/lib/exportUtils'
 import { Download, Plus, Upload, Calendar, FileSpreadsheet, MoreVertical } from 'lucide-react'
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
+import dynamic from 'next/dynamic'
+const CreateScheduleDialog = dynamic(() => import('@/components/CreateScheduleDialog'), { ssr: false })
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { showError, showWarning, showSuccess, showWarningHtml } from '@/lib/sweetalert'
 
@@ -1026,6 +1028,7 @@ function ShiftRowContainer({ shiftType, children, onDrop }: ShiftRowContainerPro
 export default function GridView({ schedule, employees, onUpdate, branchCode, division }: GridViewProps) {
   const [companyName, setCompanyName] = useState('MI EMPRESA')
   const [isEditingCompany, setIsEditingCompany] = useState(false)
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [coverageMenu, setCoverageMenu] = useState<{
     isOpen: boolean
     position: { x: number; y: number }
@@ -2750,7 +2753,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   }
 
   const handleNewScheduleClick = async () => {
-    await handleCreateNextSchedule()
+    setIsCreateDialogOpen(true)
   }
 
   // Context menu no-op (blank mode removed)
@@ -2769,7 +2772,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
           </div>
           <div className="flex items-center justify-center gap-3">
             <button
-              onClick={handleNewScheduleClick}
+              onClick={() => setIsCreateDialogOpen(true)}
               title={"Crear horario para la siguiente quincena disponible"}
               className="btn btn-primary inline-flex items-center space-x-2 interactive"
             >
@@ -2801,6 +2804,19 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
   return (
     <DndProvider backend={HTML5Backend}>
+      {isCreateDialogOpen && (
+        <CreateScheduleDialog
+          isOpen={isCreateDialogOpen}
+          onClose={() => setIsCreateDialogOpen(false)}
+          branchCode={(branchCode || '001') as any}
+          division={(division || 'super') as any}
+          employees={employees}
+          onCreated={async () => {
+            await onUpdate()
+            setIsCreateDialogOpen(false)
+          }}
+        />
+      )}
       {/* Coverage Menu */}
       {coverageMenu && (
         <CoverageMenu
@@ -2858,7 +2874,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
             <div className="flex items-center gap-3">
               {/* Botón Nuevo horario (a la izquierda del menú) */}
               <button
-                onClick={handleNewScheduleClick}
+                onClick={() => setIsCreateDialogOpen(true)}
                 title={"Crear horario para la siguiente quincena disponible"}
                 className="btn btn-primary inline-flex items-center space-x-2 interactive"
               >
