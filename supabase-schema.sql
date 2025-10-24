@@ -18,6 +18,9 @@ CREATE TABLE IF NOT EXISTS employees (
   branch_code TEXT CHECK (branch_code IN ('001', '002', '003')),
   division TEXT CHECK (division IN ('super', 'gasolinera', 'restaurant', 'limpieza')),
   shift_rotation_count INTEGER DEFAULT 0,
+  -- Rotation/Audit fields
+  night_eligible BOOLEAN DEFAULT true,
+  last_night_quincena_start DATE,
   is_active BOOLEAN DEFAULT true,
   deleted_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -77,6 +80,7 @@ CREATE TABLE IF NOT EXISTS schedule_metrics (
 CREATE INDEX IF NOT EXISTS idx_employees_branch ON employees(branch_code);
 CREATE INDEX IF NOT EXISTS idx_employees_division ON employees(division);
 CREATE INDEX IF NOT EXISTS idx_employees_active ON employees(is_active);
+CREATE INDEX IF NOT EXISTS idx_employees_night_eligible ON employees(night_eligible);
 CREATE INDEX IF NOT EXISTS idx_schedules_dates ON schedules(start_date, end_date);
 CREATE INDEX IF NOT EXISTS idx_schedules_branch ON schedules(branch_code);
 CREATE INDEX IF NOT EXISTS idx_schedule_edits_schedule ON schedule_edits(schedule_id);
@@ -107,6 +111,56 @@ CREATE TRIGGER update_schedules_updated_at
   EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================
+-- Tabla: inactive_employees (soft delete archive)
+-- ============================================
+CREATE TABLE IF NOT EXISTS inactive_employees (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT NOT NULL,
+  department TEXT,
+  available_days TEXT[] NOT NULL DEFAULT '{}',
+  email TEXT,
+  phone TEXT,
+  assigned_shift TEXT CHECK (assigned_shift IN ('morning', 'afternoon', 'night', 'unassigned')),
+  branch_code TEXT CHECK (branch_code IN ('001', '002', '003')),
+  division TEXT CHECK (division IN ('super', 'gasolinera', 'restaurant', 'limpieza')),
+  shift_rotation_count INTEGER DEFAULT 0,
+  deleted_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_inactive_employees_branch ON inactive_employees(branch_code);
+CREATE INDEX IF NOT EXISTS idx_inactive_employees_division ON inactive_employees(division);
+CREATE INDEX IF NOT EXISTS idx_inactive_employees_deleted ON inactive_employees(deleted_at);
+
+CREATE TRIGGER update_inactive_employees_updated_at
+  BEFORE UPDATE ON inactive_employees
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================
+-- Tabla: employee_quincena_stats (rotation memory)
+-- ============================================
+CREATE TABLE IF NOT EXISTS employee_quincena_stats (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  branch_code TEXT CHECK (branch_code IN ('001', '002', '003')),
+  division TEXT CHECK (division IN ('super', 'gasolinera', 'restaurant', 'limpieza')),
+  quincena_start DATE NOT NULL,
+  quincena_end DATE NOT NULL,
+  assigned_shift TEXT CHECK (assigned_shift IN ('morning', 'afternoon', 'night', 'unassigned')),
+  pre_night_day_shift TEXT CHECK (pre_night_day_shift IN ('morning', 'afternoon')),
+  rest_days INTEGER DEFAULT 0,
+  total_night_shifts INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(employee_id, quincena_start)
+);
+
+CREATE INDEX IF NOT EXISTS idx_quincena_stats_employee ON employee_quincena_stats(employee_id);
+CREATE INDEX IF NOT EXISTS idx_quincena_stats_quincena ON employee_quincena_stats(quincena_start);
+
+-- ============================================
 -- Row Level Security (RLS)
 -- Por defecto, permitir todas las operaciones
 -- Ajusta según tus necesidades de seguridad
@@ -115,12 +169,16 @@ ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
 ALTER TABLE schedules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE schedule_edits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE schedule_metrics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inactive_employees ENABLE ROW LEVEL SECURITY;
+ALTER TABLE employee_quincena_stats ENABLE ROW LEVEL SECURITY;
 
 -- Políticas permisivas para desarrollo (ajustar en producción)
 CREATE POLICY "Enable all operations for employees" ON employees FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Enable all operations for schedules" ON schedules FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Enable all operations for schedule_edits" ON schedule_edits FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Enable all operations for schedule_metrics" ON schedule_metrics FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Enable all operations for inactive_employees" ON inactive_employees FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Enable all operations for employee_quincena_stats" ON employee_quincena_stats FOR ALL USING (true) WITH CHECK (true);
 
 -- ============================================
 -- Vista para análisis de ML (opcional)
