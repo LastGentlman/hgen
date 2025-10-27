@@ -76,6 +76,48 @@ export const showInfo = async (message: string, title: string = 'Información') 
 }
 
 /**
+ * Muestra un mensaje de éxito con HTML (permite <img>, <video>, etc.)
+ */
+export const showSuccessHtml = async (htmlContent: string, title: string = '¡Éxito!') => {
+  const Swal = await loadSwal()
+  return Swal.fire({
+    icon: 'success',
+    title,
+    html: htmlContent,
+    confirmButtonText: 'Aceptar',
+    confirmButtonColor: baseConfig.confirmButtonColor,
+  })
+}
+
+/**
+ * Muestra un mensaje de error con HTML
+ */
+export const showErrorHtml = async (htmlContent: string, title: string = 'Error') => {
+  const Swal = await loadSwal()
+  return Swal.fire({
+    icon: 'error',
+    title,
+    html: htmlContent,
+    confirmButtonText: 'Aceptar',
+    confirmButtonColor: baseConfig.confirmButtonColor,
+  })
+}
+
+/**
+ * Muestra un mensaje informativo con HTML
+ */
+export const showInfoHtml = async (htmlContent: string, title: string = 'Información') => {
+  const Swal = await loadSwal()
+  return Swal.fire({
+    icon: 'info',
+    title,
+    html: htmlContent,
+    confirmButtonText: 'Aceptar',
+    confirmButtonColor: baseConfig.confirmButtonColor,
+  })
+}
+
+/**
  * Muestra un diálogo de confirmación
  * Retorna true si el usuario confirma, false si cancela
  */

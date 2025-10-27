@@ -10,7 +10,7 @@ import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import dynamic from 'next/dynamic'
 const CreateScheduleDialog = dynamic(() => import('@/components/CreateScheduleDialog'), { ssr: false })
 import { HTML5Backend } from 'react-dnd-html5-backend'
-import { showError, showWarning, showSuccess, showWarningHtml } from '@/lib/sweetalert'
+import { showError, showWarning, showSuccess, showWarningHtml, showSuccessHtml } from '@/lib/sweetalert'
 
 interface GridViewProps {
   schedule: Schedule | null
@@ -2189,7 +2189,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
         if (successCount > 0 && failCount === 0) {
           if (importedScheduleNames.length > 0) {
             const schedulesList = importedScheduleNames.map((name, i) => `<li>${name}</li>`).join('')
-            showSuccess(`Se importaron ${successCount} horario${successCount > 1 ? 's' : ''} correctamente:<br><br><ul style="text-align: left; margin: 10px 0;">${schedulesList}</ul>`, '¡Importación exitosa!')
+            showSuccessHtml(`Se importaron ${successCount} horario${successCount > 1 ? 's' : ''} correctamente:<br><br><ul style="text-align: left; margin: 10px 0;">${schedulesList}</ul>`, '¡Importación exitosa!')
           } else {
             showSuccess(`Se importaron ${successCount} horario${successCount > 1 ? 's' : ''} correctamente.`, '¡Importación exitosa!')
           }
@@ -2205,7 +2205,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
         if (importedScheduleNames.length > 1) {
           // Multi-schedule CSV in single file mode
           const schedulesList = importedScheduleNames.map((name, i) => `<li>${name}</li>`).join('')
-          showSuccess(`Se importaron ${importedScheduleNames.length} horarios:<br><br><ul style="text-align: left; margin: 10px 0;">${schedulesList}</ul>`, '¡Importación exitosa!')
+          showSuccessHtml(`Se importaron ${importedScheduleNames.length} horarios:<br><br><ul style="text-align: left; margin: 10px 0;">${schedulesList}</ul>`, '¡Importación exitosa!')
         } else if (importedScheduleNames.length === 1) {
           // Single schedule from multi-schedule CSV
           showSuccess(`Horario importado: ${importedScheduleNames[0]}`, '¡Importación exitosa!')
