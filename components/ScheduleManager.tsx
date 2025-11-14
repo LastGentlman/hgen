@@ -31,11 +31,17 @@ export default function ScheduleManager({ employees, onUpdate, onScheduleSelect,
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null)
   type LeftClickBehavior = 'form' | 'quick'
-  const [leftClickBehavior, setLeftClickBehavior] = useState<LeftClickBehavior>(() => {
-    if (typeof window === 'undefined') return 'form'
-    const stored = window.localStorage.getItem('hgen_left_click_create_behavior') as LeftClickBehavior | null
-    return stored === 'quick' || stored === 'form' ? stored : 'form'
-  })
+  const [leftClickBehavior, setLeftClickBehavior] = useState<LeftClickBehavior>('form')
+
+  // Load leftClickBehavior from localStorage after mount (client-side only)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = window.localStorage.getItem('hgen_left_click_create_behavior') as LeftClickBehavior | null
+      if (stored === 'quick' || stored === 'form') {
+        setLeftClickBehavior(stored)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     loadSchedules()

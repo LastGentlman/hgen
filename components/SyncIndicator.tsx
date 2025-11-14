@@ -187,7 +187,7 @@ export default function SyncIndicator({ onDataRefresh }: SyncIndicatorProps) {
           className={`flex items-center space-x-2 px-3 py-2 rounded-lg border shadow-sm transition-all ${getStatusColor()} ${
             isOnline && !isSyncing ? 'hover:shadow-md cursor-pointer' : 'cursor-not-allowed'
           }`}
-          title={lastSync ? `Última sincronización: ${new Date(lastSync).toLocaleString()}\n\nClick derecho para más opciones` : 'Sin sincronizar\n\nClick derecho para más opciones'}
+          title={lastSync ? `Última sincronización: ${new Date(lastSync).toLocaleString()}\n\nClic derecho para más opciones` : 'Sin sincronizar\n\nClic derecho para más opciones'}
         >
           {getStatusIcon()}
           <span className="text-sm font-medium">{getStatusText()}</span>
