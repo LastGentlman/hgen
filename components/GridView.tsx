@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react'
 import { Employee, Schedule, ShiftStatus, ShiftType, CoverageInfo, PositionType, BranchCode, Division } from '@/types'
 import { storage } from '@/lib/storage'
 import { formatTime, generateWeeklySchedule, getDefaultShiftTemplates, parseLocalDate, generateId } from '@/lib/utils'
@@ -1026,6 +1026,39 @@ function ShiftRowContainer({ shiftType, children, onDrop }: ShiftRowContainerPro
 }
 
 export default function GridView({ schedule, employees, onUpdate, branchCode, division }: GridViewProps) {
+  // Local optimistic state for immediate UI updates
+  const [localSchedule, setLocalSchedule] = useState<Schedule | null>(schedule)
+  
+  // Sync local schedule when prop changes (only when schedule ID changes, not on every update)
+  useEffect(() => {
+    // Only sync if the schedule ID actually changed, or if we don't have a local schedule
+    if (!localSchedule || schedule?.id !== localSchedule.id) {
+      setLocalSchedule(schedule)
+      // Clear any pending updates when schedule prop changes
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current)
+        updateTimeoutRef.current = null
+      }
+      pendingUpdateRef.current = null
+    } else if (schedule && localSchedule) {
+      // If schedule ID is the same but there's no pending update, sync to get latest from storage
+      // This handles the case where onUpdate() brings fresh data from storage
+      // But only if we don't have pending local changes
+      if (!pendingUpdateRef.current) {
+        setLocalSchedule(schedule)
+      }
+    }
+  }, [schedule?.id, schedule, localSchedule?.id])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current)
+      }
+    }
+  }, [])
+
   const [companyName, setCompanyName] = useState('MI EMPRESA')
   const [isEditingCompany, setIsEditingCompany] = useState(false)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -1074,6 +1107,9 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   const tableRef = useRef<HTMLDivElement>(null)
   const csvFileInputRef = useRef<HTMLInputElement>(null)
   const actionsMenuRef = useRef<HTMLDivElement>(null)
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const pendingUpdateRef = useRef<{ schedule: Schedule; status: ShiftStatus; employeeId: string; dayIndex: number; shiftType: ShiftType } | null>(null)
+  const updateCounterRef = useRef<number>(0)
 
   // Helper function to determine shift type from time
   const getShiftTypeFromTime = (startTime: string, endTime: string): ShiftType | null => {
@@ -1090,12 +1126,12 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
   // Calculate assigned shift dynamically for each employee based on THIS schedule
   const getEmployeeAssignedShift = (employeeId: string): ShiftType => {
-    if (!schedule) return 'unassigned'
+    if (!localSchedule) return 'unassigned'
 
     // Count shifts by type in THIS schedule
     const shiftCounts = { morning: 0, afternoon: 0, night: 0 }
 
-    schedule.days.forEach(day => {
+    localSchedule.days.forEach(day => {
       day.shifts.forEach(shift => {
         if (shift.employeeId === employeeId && shift.status !== 'empty') {
           const shiftType = getShiftTypeFromTime(shift.startTime, shift.endTime)
@@ -1123,13 +1159,13 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   // Calculate assignedShift dynamically for each employee based on THIS schedule
   // This allows for rotating schedules where an employee can be in different shifts in different schedules
   const employeesWithShifts = useMemo(() => {
-    if (!schedule) return employees
+    if (!localSchedule) return employees
 
     return employees.map(emp => ({
       ...emp,
       assignedShift: getEmployeeAssignedShift(emp.id)
     }))
-  }, [employees, schedule])
+  }, [employees, localSchedule])
 
   // Update the visible title based on selected division/branch (map 'super' -> 'TRUCK STOP')
   useEffect(() => {
@@ -1312,92 +1348,6 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     autoAssignShifts()
   }, [schedule?.id, employeesWithShifts.length]) // Run when schedule changes or employee count changes
 
-  // Hotkey handler for quick status assignment (single or multi-selection)
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      // Don't trigger if user is typing in an input or textarea
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return
-      }
-
-      const key = e.key.toLowerCase()
-
-      // Handle Escape - clear all selections
-      if (key === 'escape') {
-        setSelectedCell(null)
-        setSelectedCells(new Set())
-        setSelectionStart(null)
-        e.preventDefault()
-        return
-      }
-
-      // Handle multi-selection
-      if (selectedCells.size > 0) {
-        let targetStatus: ShiftStatus | null = null
-
-        switch (key) {
-          case 'v':
-            targetStatus = 'vacation'
-            break
-          case 'd':
-            targetStatus = 'rest'
-            break
-          case 'c':
-            targetStatus = 'covering'
-            break
-          case 'delete':
-          case 'backspace':
-            targetStatus = 'assigned'
-            break
-          default:
-            return
-        }
-
-        if (targetStatus) {
-          // Apply status to all selected cells
-          selectedCells.forEach(cellKey => {
-            const [employeeId, dayIndexStr, shiftType] = cellKey.split('-')
-            const dayIndex = parseInt(dayIndexStr)
-            applyStatus(targetStatus!, employeeId, dayIndex, shiftType as ShiftType)
-          })
-          // Clear selection after applying
-          setSelectedCells(new Set())
-          setSelectionStart(null)
-          e.preventDefault()
-        }
-        return
-      }
-
-      // Handle single cell selection
-      if (!selectedCell) return
-
-      const { employeeId, dayIndex, shiftType } = selectedCell
-
-      switch (key) {
-        case 'v':
-          applyStatus('vacation', employeeId, dayIndex, shiftType)
-          break
-        case 'd':
-          applyStatus('rest', employeeId, dayIndex, shiftType)
-          break
-        case 'c':
-          applyStatus('covering', employeeId, dayIndex, shiftType)
-          break
-        case 'delete':
-        case 'backspace':
-          applyStatus('assigned', employeeId, dayIndex, shiftType)
-          break
-        default:
-          return
-      }
-
-      e.preventDefault()
-    }
-
-    window.addEventListener('keydown', handleKeyPress)
-    return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [selectedCell, selectedCells, schedule, employees])
-
   // Handle global mouseup to stop selection
   useEffect(() => {
     const handleMouseUp = () => {
@@ -1411,9 +1361,9 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   }, [isSelecting])
 
   // Get shift for a specific employee on a specific day and shift type
-  const getShiftForDay = (dayIndex: number, shiftType: ShiftType, employeeId?: string): any => {
-    if (!schedule) return null
-    const day = schedule.days[dayIndex]
+  const getShiftForDay = useCallback((dayIndex: number, shiftType: ShiftType, employeeId?: string): any => {
+    if (!localSchedule) return null
+    const day = localSchedule.days[dayIndex]
     const shiftConfig = SHIFT_LABELS[shiftType as keyof typeof SHIFT_LABELS]
     if (!shiftConfig) return null
 
@@ -1430,20 +1380,22 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
     // Otherwise find any shift with that time (backwards compatibility)
     return day.shifts.find(s => s.startTime === startTime && s.endTime === endTime)
-  }
+  }, [localSchedule])
 
-  const handleCellClick = (employeeId: string, dayIndex: number, shiftType: ShiftType, e?: React.MouseEvent) => {
+  const handleCellClick = useCallback((employeeId: string, dayIndex: number, shiftType: ShiftType, e?: React.MouseEvent) => {
     const cellKey = `${employeeId}-${dayIndex}-${shiftType}`
 
     // Ctrl+Click: Toggle cell in multi-selection
     if (e?.ctrlKey) {
-      const newSelection = new Set(selectedCells)
-      if (newSelection.has(cellKey)) {
-        newSelection.delete(cellKey)
-      } else {
-        newSelection.add(cellKey)
-      }
-      setSelectedCells(newSelection)
+      setSelectedCells(prev => {
+        const newSelection = new Set(prev)
+        if (newSelection.has(cellKey)) {
+          newSelection.delete(cellKey)
+        } else {
+          newSelection.add(cellKey)
+        }
+        return newSelection
+      })
       setSelectedCell(null)
       setSelectionStart(null)
       return
@@ -1453,9 +1405,9 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     setSelectedCells(new Set())
     setSelectionStart(null)
     setSelectedCell({ employeeId, dayIndex, shiftType })
-  }
+  }, [])
 
-  const handleCellMouseDown = (employeeId: string, dayIndex: number, shiftType: ShiftType, e: React.MouseEvent) => {
+  const handleCellMouseDown = useCallback((employeeId: string, dayIndex: number, shiftType: ShiftType, e: React.MouseEvent) => {
     // Prevent text selection
     e.preventDefault()
 
@@ -1470,9 +1422,9 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     // Initialize selection with this cell
     const cellKey = `${employeeId}-${dayIndex}-${shiftType}`
     setSelectedCells(new Set([cellKey]))
-  }
+  }, [])
 
-  const handleCellMouseEnter = (employeeId: string, dayIndex: number, shiftType: ShiftType) => {
+  const handleCellMouseEnter = useCallback((employeeId: string, dayIndex: number, shiftType: ShiftType) => {
     if (!isSelecting || !selectionStart) return
 
     // Only select cells from the same employee and same shift
@@ -1489,15 +1441,13 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     }
 
     setSelectedCells(newSelection)
-  }
+  }, [isSelecting, selectionStart])
 
-  // Apply status directly via hotkey (no rotation)
-  const applyStatus = async (targetStatus: ShiftStatus, employeeId: string, dayIndex: number, shiftType: ShiftType) => {
-    if (!schedule) return
-
-    const updatedSchedule = { ...schedule }
+  // Internal function to actually apply the status update (synchronous)
+  const applyStatusInternal = useCallback((targetStatus: ShiftStatus, employeeId: string, dayIndex: number, shiftType: ShiftType, currentSchedule: Schedule): Schedule => {
+    const updatedSchedule = { ...currentSchedule }
     const shiftConfig = SHIFT_LABELS[shiftType as keyof typeof SHIFT_LABELS]
-    if (!shiftConfig) return
+    if (!shiftConfig) return updatedSchedule
 
     const [startTime, endTime] = shiftConfig.time.split('-')
 
@@ -1611,7 +1561,6 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       )
 
       if (shiftIndex === -1) {
-        const { generateId } = require('@/lib/utils')
         day.shifts.push({
           id: generateId(),
           startTime,
@@ -1639,9 +1588,139 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       }
     })
 
-    await storage.updateSchedule(schedule.id, updatedSchedule)
-    onUpdate()
-  }
+    return updatedSchedule
+  }, [])
+
+  // Apply status with debouncing for storage updates
+  const applyStatus = useCallback(async (targetStatus: ShiftStatus, employeeId: string, dayIndex: number, shiftType: ShiftType) => {
+    // Increment update counter to track the most recent update
+    const currentUpdateId = ++updateCounterRef.current
+
+    // Clear any pending timeout
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current)
+    }
+
+    // Use functional update to ensure we're working with the latest state
+    let updatedSchedule: Schedule | null = null
+    setLocalSchedule(currentSchedule => {
+      if (!currentSchedule) return currentSchedule
+      
+      // Apply the change synchronously for immediate UI feedback
+      updatedSchedule = applyStatusInternal(targetStatus, employeeId, dayIndex, shiftType, currentSchedule)
+      return updatedSchedule
+    })
+
+    // Only proceed if this is still the most recent update and we got a valid schedule
+    if (currentUpdateId === updateCounterRef.current && updatedSchedule) {
+      // Store for debounced save
+      pendingUpdateRef.current = {
+        schedule: updatedSchedule,
+        status: targetStatus,
+        employeeId,
+        dayIndex,
+        shiftType
+      }
+
+      // Debounce the actual storage update
+      updateTimeoutRef.current = setTimeout(async () => {
+        // Only save if this is still the most recent update and we have pending changes
+        if (pendingUpdateRef.current && currentUpdateId === updateCounterRef.current) {
+          // Use the pending update schedule to ensure we save the correct version
+          const scheduleToSave = pendingUpdateRef.current.schedule
+          await storage.updateSchedule(scheduleToSave.id, scheduleToSave)
+          onUpdate()
+          pendingUpdateRef.current = null
+        }
+      }, 300) // 300ms debounce
+    }
+  }, [applyStatusInternal, onUpdate])
+
+  // Hotkey handler for quick status assignment (single or multi-selection)
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input or textarea
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      const key = e.key.toLowerCase()
+
+      // Handle Escape - clear all selections
+      if (key === 'escape') {
+        setSelectedCell(null)
+        setSelectedCells(new Set())
+        setSelectionStart(null)
+        e.preventDefault()
+        return
+      }
+
+      // Handle multi-selection
+      if (selectedCells.size > 0) {
+        let targetStatus: ShiftStatus | null = null
+
+        switch (key) {
+          case 'v':
+            targetStatus = 'vacation'
+            break
+          case 'd':
+            targetStatus = 'rest'
+            break
+          case 'c':
+            targetStatus = 'covering'
+            break
+          case 'delete':
+          case 'backspace':
+            targetStatus = 'assigned'
+            break
+          default:
+            return
+        }
+
+        if (targetStatus) {
+          // Apply status to all selected cells
+          selectedCells.forEach(cellKey => {
+            const [employeeId, dayIndexStr, shiftType] = cellKey.split('-')
+            const dayIndex = parseInt(dayIndexStr)
+            applyStatus(targetStatus!, employeeId, dayIndex, shiftType as ShiftType)
+          })
+          // Clear selection after applying
+          setSelectedCells(new Set())
+          setSelectionStart(null)
+          e.preventDefault()
+        }
+        return
+      }
+
+      // Handle single cell selection
+      if (!selectedCell) return
+
+      const { employeeId, dayIndex, shiftType } = selectedCell
+
+      switch (key) {
+        case 'v':
+          applyStatus('vacation', employeeId, dayIndex, shiftType)
+          break
+        case 'd':
+          applyStatus('rest', employeeId, dayIndex, shiftType)
+          break
+        case 'c':
+          applyStatus('covering', employeeId, dayIndex, shiftType)
+          break
+        case 'delete':
+        case 'backspace':
+          applyStatus('assigned', employeeId, dayIndex, shiftType)
+          break
+        default:
+          return
+      }
+
+      e.preventDefault()
+    }
+
+    window.addEventListener('keydown', handleKeyPress)
+    return () => window.removeEventListener('keydown', handleKeyPress)
+  }, [selectedCell, selectedCells, applyStatus])
 
   const handleContextMenu = (
     e: React.MouseEvent,
@@ -2975,7 +3054,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
             {companyName}
           </h1>
           <h2 className="text-lg text-white mt-2">
-            ROL DE TURNOS DEL {parseLocalDate(schedule.startDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()} AL {parseLocalDate(schedule.endDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}
+            ROL DE TURNOS DEL {localSchedule ? parseLocalDate(localSchedule.startDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase() : ''} AL {localSchedule ? parseLocalDate(localSchedule.endDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase() : ''}
           </h2>
         </div>
 
@@ -2990,7 +3069,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
               >
                 Nombre
               </th>
-              {schedule.days.map((day, idx) => (
+              {localSchedule?.days.map((day, idx) => (
                 <th key={idx} style={{ border: '1px solid #000', padding: '4px', fontSize: '11px', color: '#FFFFFF', backgroundColor: '#654321' }}>
                   <div>{parseLocalDate(day.date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })}</div>
                   <div style={{ fontSize: '10px' }}>{day.dayName.toUpperCase()}</div>
@@ -3005,13 +3084,13 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
             onDrop={handleEmployeeShiftChange}
           >
             <tr style={{ backgroundColor: '#FFEB9C' }}>
-              <td colSpan={schedule.days.length + 1} style={{ border: '1px solid #000', padding: '8px', fontWeight: 'bold', textAlign: 'center' }}>
+              <td colSpan={(localSchedule?.days.length || 0) + 1} style={{ border: '1px solid #000', padding: '8px', fontWeight: 'bold', textAlign: 'center' }}>
                 {SHIFT_LABELS.morning.label}
               </td>
             </tr>
             {getEmployeesByShiftSorted('morning').length === 0 ? (
               <tr>
-                <td colSpan={schedule.days.length + 1} style={{ border: '1px solid #000', padding: '12px', textAlign: 'center', color: '#999' }}>
+                <td colSpan={(localSchedule?.days.length || 0) + 1} style={{ border: '1px solid #000', padding: '12px', textAlign: 'center', color: '#999' }}>
                   No hay empleados asignados a este turno
                 </td>
               </tr>
@@ -3022,7 +3101,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
                     key={employee.id}
                     employee={employee}
                     shiftType="morning"
-                    schedule={schedule}
+                    schedule={localSchedule!}
                     employees={employees}
                     onCellClick={handleCellClick}
                     onContextMenu={handleContextMenu}
@@ -3043,7 +3122,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
                     key={`covering-${employee.id}`}
                     employee={employee}
                     shiftType="morning"
-                    schedule={schedule}
+                    schedule={localSchedule!}
                     employees={employees}
                     onCellClick={handleCellClick}
                     onContextMenu={handleContextMenu}
@@ -3070,13 +3149,13 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
             onDrop={handleEmployeeShiftChange}
           >
             <tr style={{ backgroundColor: '#FFEB9C' }}>
-              <td colSpan={schedule.days.length + 1} style={{ border: '1px solid #000', padding: '8px', fontWeight: 'bold', textAlign: 'center' }}>
+              <td colSpan={(localSchedule?.days.length || 0) + 1} style={{ border: '1px solid #000', padding: '8px', fontWeight: 'bold', textAlign: 'center' }}>
                 {SHIFT_LABELS.afternoon.label}
               </td>
             </tr>
             {getEmployeesByShiftSorted('afternoon').length === 0 ? (
               <tr>
-                <td colSpan={schedule.days.length + 1} style={{ border: '1px solid #000', padding: '12px', textAlign: 'center', color: '#999' }}>
+                <td colSpan={(localSchedule?.days.length || 0) + 1} style={{ border: '1px solid #000', padding: '12px', textAlign: 'center', color: '#999' }}>
                   No hay empleados asignados a este turno
                 </td>
               </tr>
@@ -3087,7 +3166,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
                     key={employee.id}
                     employee={employee}
                     shiftType="afternoon"
-                    schedule={schedule}
+                    schedule={localSchedule!}
                     employees={employees}
                     onCellClick={handleCellClick}
                     onContextMenu={handleContextMenu}
@@ -3108,7 +3187,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
                     key={`covering-${employee.id}`}
                     employee={employee}
                     shiftType="afternoon"
-                    schedule={schedule}
+                    schedule={localSchedule!}
                     employees={employees}
                     onCellClick={handleCellClick}
                     onContextMenu={handleContextMenu}
@@ -3136,13 +3215,13 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
               onDrop={handleEmployeeShiftChange}
             >
               <tr style={{ backgroundColor: '#FFEB9C' }}>
-                <td colSpan={schedule.days.length + 1} style={{ border: '1px solid #000', padding: '8px', fontWeight: 'bold', textAlign: 'center' }}>
+                <td colSpan={(localSchedule?.days.length || 0) + 1} style={{ border: '1px solid #000', padding: '8px', fontWeight: 'bold', textAlign: 'center' }}>
                   {SHIFT_LABELS.night.label}
                 </td>
               </tr>
               {getEmployeesByShiftSorted('night').length === 0 ? (
                 <tr>
-                  <td colSpan={schedule.days.length + 1} style={{ border: '1px solid #000', padding: '12px', textAlign: 'center', color: '#999' }}>
+                  <td colSpan={(localSchedule?.days.length || 0) + 1} style={{ border: '1px solid #000', padding: '12px', textAlign: 'center', color: '#999' }}>
                     No hay empleados asignados a este turno
                   </td>
                 </tr>
@@ -3153,7 +3232,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
                       key={employee.id}
                       employee={employee}
                       shiftType="night"
-                      schedule={schedule}
+                      schedule={localSchedule!}
                       employees={employees}
                       onCellClick={handleCellClick}
                       onContextMenu={handleContextMenu}
@@ -3174,7 +3253,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
                       key={`covering-${employee.id}`}
                       employee={employee}
                       shiftType="night"
-                      schedule={schedule}
+                      schedule={localSchedule!}
                       employees={employees}
                       onCellClick={handleCellClick}
                       onContextMenu={handleContextMenu}
