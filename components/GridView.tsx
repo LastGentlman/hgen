@@ -758,7 +758,7 @@ interface DraggableEmployeeRowProps {
   branchCode?: BranchCode
 }
 
-function DraggableEmployeeRow({ employee, shiftType, schedule, employees, onCellClick, onContextMenu, onEmployeeContextMenu, onPositionChange, getShiftForDay, onVacationDrop, onCellMouseDown, onCellMouseEnter, selectedCell, selectedCells, isCoveringRow = false, coveringDays = [], branchCode }: DraggableEmployeeRowProps) {
+const DraggableEmployeeRow = memo(function DraggableEmployeeRow({ employee, shiftType, schedule, employees, onCellClick, onContextMenu, onEmployeeContextMenu, onPositionChange, getShiftForDay, onVacationDrop, onCellMouseDown, onCellMouseEnter, selectedCell, selectedCells, isCoveringRow = false, coveringDays = [], branchCode }: DraggableEmployeeRowProps) {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: ItemTypes.EMPLOYEE_ROW,
     item: { employee, fromShift: shiftType },
@@ -990,7 +990,7 @@ function DraggableEmployeeRow({ employee, shiftType, schedule, employees, onCell
       {renderCells()}
     </tr>
   )
-}
+})
 
 // Droppable Shift Row Container
 interface ShiftRowContainerProps {
@@ -1361,11 +1361,12 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   }, [isSelecting])
 
   // Get shift for a specific employee on a specific day and shift type
-  const getShiftForDay = useCallback((dayIndex: number, shiftType: ShiftType, employeeId?: string): any => {
-    if (!localSchedule) return null
+  const getShiftForDay = useCallback((dayIndex: number, shiftType: ShiftType, employeeId?: string): import('@/types').Shift | undefined => {
+    if (!localSchedule) return undefined
     const day = localSchedule.days[dayIndex]
+    if (!day) return undefined
     const shiftConfig = SHIFT_LABELS[shiftType as keyof typeof SHIFT_LABELS]
-    if (!shiftConfig) return null
+    if (!shiftConfig) return undefined
 
     const [startTime, endTime] = shiftConfig.time.split('-')
 
@@ -1757,19 +1758,46 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   }
 
   const handleCoverageSelect = async (coverageInfo: CoverageInfo) => {
-    if (!coverageMenu || !schedule) return
+    if (!coverageMenu) return
 
-    const updatedSchedule = { ...schedule }
-    const shift = getShiftForDay(coverageMenu.dayIndex, coverageMenu.shiftType, coverageMenu.employeeId)
+    // Get latest schedule state, prioritizing pending updates
+    const currentSchedule = pendingUpdateRef.current?.schedule || localSchedule || schedule
+    if (!currentSchedule) return
 
-    if (shift) {
-      const shiftIndex = updatedSchedule.days[coverageMenu.dayIndex].shifts.findIndex(s => s.id === shift.id)
-      if (shiftIndex !== -1) {
-        updatedSchedule.days[coverageMenu.dayIndex].shifts[shiftIndex].coverageInfo = coverageInfo
-      }
+    // Deep clone to avoid mutating state
+    const updatedSchedule = JSON.parse(JSON.stringify(currentSchedule))
+
+    // We need to find the shift in the cloned schedule
+    // getShiftForDay relies on localSchedule state, which might be slightly stale if we used pendingUpdateRef
+    // So we manually find the shift in updatedSchedule
+    const day = updatedSchedule.days[coverageMenu.dayIndex]
+    if (!day) return
+
+    const shiftConfig = SHIFT_LABELS[coverageMenu.shiftType as keyof typeof SHIFT_LABELS]
+    if (!shiftConfig) return
+    const [startTime, endTime] = shiftConfig.time.split('-')
+
+    const shiftIndex = day.shifts.findIndex((s: any) =>
+      s.startTime === startTime &&
+      s.endTime === endTime &&
+      s.employeeId === coverageMenu.employeeId
+    )
+
+    if (shiftIndex !== -1) {
+      day.shifts[shiftIndex].coverageInfo = coverageInfo
     }
 
-    await storage.updateSchedule(schedule.id, updatedSchedule)
+    // Clear any pending debounced updates
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current)
+      updateTimeoutRef.current = null
+      pendingUpdateRef.current = null
+    }
+
+    // Update local state immediately
+    setLocalSchedule(updatedSchedule)
+
+    await storage.updateSchedule(updatedSchedule.id, updatedSchedule)
     onUpdate()
   }
 
@@ -1852,15 +1880,17 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   }
 
   const handleDeleteFromScheduleOnly = async (employeeId: string) => {
-    if (!schedule) return
+    // Get latest schedule state, prioritizing pending updates
+    const currentSchedule = pendingUpdateRef.current?.schedule || localSchedule || schedule
+    if (!currentSchedule) return
 
     // Soft-delete employee (can be restored from GridView)
     await storage.deleteEmployee(employeeId)
 
     // Remove all shifts assigned to this employee in THIS schedule
-    const updatedSchedule = { ...schedule }
-    updatedSchedule.days.forEach(day => {
-      day.shifts.forEach(shift => {
+    const updatedSchedule = JSON.parse(JSON.stringify(currentSchedule))
+    updatedSchedule.days.forEach((day: any) => {
+      day.shifts.forEach((shift: any) => {
         if (shift.employeeId === employeeId) {
           shift.employeeId = undefined
           shift.isAssigned = false
@@ -1870,20 +1900,32 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       })
     })
 
-    await storage.updateSchedule(schedule.id, updatedSchedule)
+    // Clear any pending debounced updates
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current)
+      updateTimeoutRef.current = null
+      pendingUpdateRef.current = null
+    }
+
+    // Update local state immediately
+    setLocalSchedule(updatedSchedule)
+
+    await storage.updateSchedule(updatedSchedule.id, updatedSchedule)
     onUpdate()
   }
 
   const handleDeleteEmployeePermanently = async (employeeId: string) => {
-    if (!schedule) return
+    // Get latest schedule state, prioritizing pending updates
+    const currentSchedule = pendingUpdateRef.current?.schedule || localSchedule || schedule
+    if (!currentSchedule) return
 
     // Permanent deletion - cannot be recovered
     await storage.hardDeleteEmployee(employeeId)
 
     // Remove all shifts assigned to this employee in THIS schedule
-    const updatedSchedule = { ...schedule }
-    updatedSchedule.days.forEach(day => {
-      day.shifts.forEach(shift => {
+    const updatedSchedule = JSON.parse(JSON.stringify(currentSchedule))
+    updatedSchedule.days.forEach((day: any) => {
+      day.shifts.forEach((shift: any) => {
         if (shift.employeeId === employeeId) {
           shift.employeeId = undefined
           shift.isAssigned = false
@@ -1893,12 +1935,25 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       })
     })
 
-    await storage.updateSchedule(schedule.id, updatedSchedule)
+    // Clear any pending debounced updates
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current)
+      updateTimeoutRef.current = null
+      pendingUpdateRef.current = null
+    }
+
+    // Update local state immediately
+    setLocalSchedule(updatedSchedule)
+
+    await storage.updateSchedule(updatedSchedule.id, updatedSchedule)
     onUpdate()
   }
 
   const handleEmployeeShiftChange = async (employeeId: string, newShiftType: ShiftType) => {
-    if (!schedule) return
+    // Get latest schedule state, prioritizing pending updates
+    const currentSchedule = pendingUpdateRef.current?.schedule || localSchedule || schedule
+    if (!currentSchedule) return
+
     // Find the employee and update their shift
     const employee = employeesWithShifts.find(emp => emp.id === employeeId)
     if (!employee) return
@@ -1907,7 +1962,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
     // If employee had a previous shift assigned, move their individual shifts to the new shift type
     if (oldShiftType && oldShiftType !== 'unassigned' && oldShiftType !== newShiftType) {
-      const updatedSchedule = { ...schedule }
+      const updatedSchedule = JSON.parse(JSON.stringify(currentSchedule))
       const { generateId } = require('@/lib/utils')
 
       // Determine available position for the new shift
@@ -1946,9 +2001,17 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       }
 
       // For each day in the schedule
-      updatedSchedule.days.forEach((day, dayIndex) => {
-        // Find the old shift for this specific employee
-        const oldShift = getShiftForDay(dayIndex, oldShiftType, employeeId)
+      updatedSchedule.days.forEach((day: any, dayIndex: number) => {
+        const oldShiftConfig = SHIFT_LABELS[oldShiftType as keyof typeof SHIFT_LABELS]
+        if (!oldShiftConfig) return
+        const [oldStart, oldEnd] = oldShiftConfig.time.split('-')
+
+        // Find the old shift manually in the cloned object
+        const oldShift = day.shifts.find((s: any) =>
+          s.startTime === oldStart &&
+          s.endTime === oldEnd &&
+          s.employeeId === employeeId
+        )
 
         if (oldShift) {
           // Get the status from the old shift
@@ -1976,15 +2039,25 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
           }
 
           // Remove the old shift for this employee
-          const oldShiftIndex = day.shifts.findIndex(s => s.id === oldShift.id)
+          const oldShiftIndex = day.shifts.findIndex((s: any) => s.id === oldShift.id)
           if (oldShiftIndex !== -1) {
             day.shifts.splice(oldShiftIndex, 1)
           }
         }
       })
 
+      // Clear any pending debounced updates
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current)
+        updateTimeoutRef.current = null
+        pendingUpdateRef.current = null
+      }
+
+      // Update local state immediately
+      setLocalSchedule(updatedSchedule)
+
       // Save the updated schedule
-      await storage.updateSchedule(schedule.id, updatedSchedule)
+      await storage.updateSchedule(updatedSchedule.id, updatedSchedule)
     }
 
     // Trigger update in parent to refresh employee list
@@ -1992,7 +2065,10 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   }
 
   const handlePositionChange = async (employeeId: string, position: PositionType) => {
-    if (!schedule) return
+    // Get latest schedule state, prioritizing pending updates
+    const currentSchedule = pendingUpdateRef.current?.schedule || localSchedule || schedule
+    if (!currentSchedule) return
+
     // Find the employee to get their shift type
     const employee = employeesWithShifts.find(emp => emp.id === employeeId)
     if (!employee || !employee.assignedShift) return
@@ -2004,7 +2080,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       return
     }
 
-    const updatedSchedule = { ...schedule }
+    const updatedSchedule = JSON.parse(JSON.stringify(currentSchedule))
 
     // Get current position of this employee
     const currentEmployeeShift = getShiftForDay(0, employee.assignedShift as ShiftType, employeeId)
@@ -2023,8 +2099,8 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       // If position is in use, swap positions
       if (employeeWithPosition) {
         // Swap: give the other employee the current employee's position
-        updatedSchedule.days.forEach((day) => {
-          day.shifts.forEach((shift) => {
+        updatedSchedule.days.forEach((day: any) => {
+          day.shifts.forEach((shift: any) => {
             if (shift.employeeId === employeeWithPosition.id) {
               shift.position = currentPosition || 'EXT'
             }
@@ -2034,30 +2110,42 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     }
 
     // Update position for all shifts belonging to this employee
-    updatedSchedule.days.forEach((day) => {
-      day.shifts.forEach((shift) => {
+    updatedSchedule.days.forEach((day: any) => {
+      day.shifts.forEach((shift: any) => {
         if (shift.employeeId === employeeId) {
           shift.position = position
         }
       })
     })
 
-    await storage.updateSchedule(schedule.id, updatedSchedule)
+    // Clear any pending debounced updates
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current)
+      updateTimeoutRef.current = null
+      pendingUpdateRef.current = null
+    }
+
+    // Update local state immediately
+    setLocalSchedule(updatedSchedule)
+
+    await storage.updateSchedule(updatedSchedule.id, updatedSchedule)
     onUpdate()
   }
 
   const handleVacationDrop = async (employeeId: string, targetDayIndex: number, shiftType: ShiftType) => {
-    if (!schedule) return
+    // Get latest schedule state, prioritizing pending updates
+    const currentSchedule = pendingUpdateRef.current?.schedule || localSchedule || schedule
+    if (!currentSchedule) return
 
-    const updatedSchedule = { ...schedule }
+    const updatedSchedule = JSON.parse(JSON.stringify(currentSchedule))
     const shiftConfig = SHIFT_LABELS[shiftType as keyof typeof SHIFT_LABELS]
     if (!shiftConfig) return
     const [startTime, endTime] = shiftConfig.time.split('-')
 
     // Find all existing vacation days for this employee/shift
     const existingVacationDays: number[] = []
-    updatedSchedule.days.forEach((day, di) => {
-      const shift = day.shifts.find(s =>
+    updatedSchedule.days.forEach((day: any, di: number) => {
+      const shift = day.shifts.find((s: any) =>
         s.startTime === startTime &&
         s.endTime === endTime &&
         s.employeeId === employeeId &&
@@ -2080,7 +2168,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
     const daysToUpdate: number[] = []
     for (let i = minDay; i <= maxDay; i++) {
-      const dayShift = updatedSchedule.days[i].shifts.find(s =>
+      const dayShift = updatedSchedule.days[i].shifts.find((s: any) =>
         s.startTime === startTime &&
         s.endTime === endTime &&
         s.employeeId === employeeId
@@ -2104,7 +2192,7 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     // Apply vacation status to all days in the merged block
     daysToUpdate.forEach(di => {
       const day = updatedSchedule.days[di]
-      let shiftIndex = day.shifts.findIndex(s =>
+      let shiftIndex = day.shifts.findIndex((s: any) =>
         s.employeeId === employeeId &&
         s.startTime === startTime &&
         s.endTime === endTime
@@ -2127,7 +2215,17 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       }
     })
 
-    await storage.updateSchedule(schedule.id, updatedSchedule)
+    // Clear any pending debounced updates
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current)
+      updateTimeoutRef.current = null
+      pendingUpdateRef.current = null
+    }
+
+    // Update local state immediately
+    setLocalSchedule(updatedSchedule)
+
+    await storage.updateSchedule(updatedSchedule.id, updatedSchedule)
     onUpdate()
   }
 
