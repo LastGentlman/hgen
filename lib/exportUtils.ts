@@ -6,42 +6,7 @@
 import type { Schedule, Employee, Shift, PositionType } from '@/types'
 import type { ParsedCSVData } from '@/lib/csvParser'
 import { showWarningHtml } from '@/lib/sweetalert'
-
-/**
- * Map shift times to shiftType
- * Examples:
- *   "06:00", "14:00" -> "morning"
- *   "14:00", "22:00" -> "afternoon"
- *   "22:00", "06:00" -> "night"
- */
-function getShiftTypeFromTime(startTime: string, endTime: string): 'morning' | 'afternoon' | 'night' | null {
-  // Normalize times to HH:MM to tolerate inputs like "7:00-15:00", "07-15", "07.00-15.00"
-  const s = normalizeTimeString(startTime)
-  const e = normalizeTimeString(endTime)
-  const normalized = `${s}-${e}`
-
-  // Canonical quincenal times (new default)
-  if (normalized === '06:00-14:00') return 'morning'
-  if (normalized === '14:00-22:00') return 'afternoon'
-  if (normalized === '22:00-06:00') return 'night'
-
-  // Accept legacy canonical times from older schedules
-  if (normalized === '07:00-15:00') return 'morning'
-  if (normalized === '15:00-23:00') return 'afternoon'
-  if (normalized === '23:00-07:00') return 'night'
-
-  // Handle potential variations
-  if (s.startsWith('07:') && e.startsWith('15:')) return 'morning'
-  if (s.startsWith('06:') && e.startsWith('14:')) return 'morning'
-
-  if (s.startsWith('15:') && e.startsWith('23:')) return 'afternoon'
-  if (s.startsWith('14:') && e.startsWith('22:')) return 'afternoon'
-
-  if (s.startsWith('23:') && e.startsWith('07:')) return 'night'
-  if (s.startsWith('22:') && e.startsWith('06:')) return 'night'
-
-  return null
-}
+import { getShiftTypeFromTime } from '@/lib/utils'
 
 /**
  * Normalize a time string to HH:MM (e.g., 7 -> 07:00, 7:0 -> 07:00, 07.00 -> 07:00)
@@ -225,6 +190,7 @@ export function exportToCSV(
 
         // Determine shift name using robust detection (supports alias times like 06-14)
         const detected = getShiftTypeFromTime(shift.startTime, shift.endTime)
+        // Handle unassigned or null
         const shiftName = detected === 'morning'
           ? 'TURNO 1'
           : detected === 'afternoon'
@@ -643,7 +609,7 @@ export function importAllSchedulesFromCSV(
             }
             let { startTime, endTime } = parsedHorario
             const bucket = getShiftTypeFromTime(startTime, endTime)
-            if (bucket) {
+            if (bucket && bucket !== 'unassigned') {
               const canonical = getCanonicalTimesForShift(bucket)
               startTime = canonical.startTime
               endTime = canonical.endTime
@@ -935,7 +901,7 @@ export function importFromCSV(
           let { startTime, endTime } = parsedHorario
           // Canonicalize to standard buckets so UI can match SHIFT_LABELS
           const bucket = getShiftTypeFromTime(startTime, endTime)
-          if (bucket) {
+          if (bucket && bucket !== 'unassigned') {
             const canonical = getCanonicalTimesForShift(bucket)
             startTime = canonical.startTime
             endTime = canonical.endTime
