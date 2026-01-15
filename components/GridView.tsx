@@ -33,9 +33,9 @@ const STATUS_CONFIG = {
 const STATUS_ROTATION: ShiftStatus[] = ['assigned', 'rest', 'vacation', 'covering']
 
 const SHIFT_LABELS = {
-  morning: { label: 'TURNO 1 DE 06:00 A 14:00 HRS', time: '06:00-14:00', shortLabel: 'T1' },
-  afternoon: { label: 'TURNO 2 DE 14:00 A 22:00 HRS', time: '14:00-22:00', shortLabel: 'T2' },
-  night: { label: 'TURNO 3 DE 22:00 A 06:00 HRS', time: '22:00-06:00', shortLabel: 'T3' }
+  morning: { label: 'TURNO 1 DE 07:00 A 15:00 HRS', time: '07:00-15:00', shortLabel: 'T1' },
+  afternoon: { label: 'TURNO 2 DE 15:00 A 23:00 HRS', time: '15:00-23:00', shortLabel: 'T2' },
+  night: { label: 'TURNO 3 DE 23:00 A 07:00 HRS', time: '23:00-07:00', shortLabel: 'T3' }
 }
 
 const ItemTypes = {

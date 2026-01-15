@@ -48,9 +48,9 @@ function parseHorarioString(horario: string): { startTime: string; endTime: stri
  * Return canonical HH:MM times for known shift types to keep UI consistent.
  */
 function getCanonicalTimesForShift(shift: 'morning' | 'afternoon' | 'night'): { startTime: string; endTime: string } {
-  if (shift === 'morning') return { startTime: '06:00', endTime: '14:00' }
-  if (shift === 'afternoon') return { startTime: '14:00', endTime: '22:00' }
-  return { startTime: '22:00', endTime: '06:00' }
+  if (shift === 'morning') return { startTime: '07:00', endTime: '15:00' }
+  if (shift === 'afternoon') return { startTime: '15:00', endTime: '23:00' }
+  return { startTime: '23:00', endTime: '07:00' }
 }
 
 /**
@@ -610,7 +610,7 @@ export function importAllSchedulesFromCSV(
             let { startTime, endTime } = parsedHorario
             const bucket = getShiftTypeFromTime(startTime, endTime)
             if (bucket && bucket !== 'unassigned') {
-              const canonical = getCanonicalTimesForShift(bucket)
+              const canonical = getCanonicalTimesForShift(bucket as 'morning' | 'afternoon' | 'night')
               startTime = canonical.startTime
               endTime = canonical.endTime
             }
@@ -902,7 +902,7 @@ export function importFromCSV(
           // Canonicalize to standard buckets so UI can match SHIFT_LABELS
           const bucket = getShiftTypeFromTime(startTime, endTime)
           if (bucket && bucket !== 'unassigned') {
-            const canonical = getCanonicalTimesForShift(bucket)
+            const canonical = getCanonicalTimesForShift(bucket as 'morning' | 'afternoon' | 'night')
             startTime = canonical.startTime
             endTime = canonical.endTime
           }

@@ -78,9 +78,9 @@ function advanceRestDay(dayName: string): string {
 }
 
 const DEFAULT_SHIFT_TIMES: Record<ShiftType, { start: string; end: string }> = {
-  morning: { start: '06:00', end: '14:00' },
-  afternoon: { start: '14:00', end: '22:00' },
-  night: { start: '22:00', end: '06:00' },
+  morning: { start: '07:00', end: '15:00' },
+  afternoon: { start: '15:00', end: '23:00' },
+  night: { start: '23:00', end: '07:00' },
   unassigned: { start: '', end: '' }
 }
 
@@ -351,7 +351,7 @@ export default function CreateScheduleDialog({ isOpen, onClose, branchCode, divi
           </div>
           <div className="flex items-center justify-between">
             <span className="text-gray-500">Turnos</span>
-            <span className="font-medium">T1 06:00–14:00 • T2 14:00–22:00 • T3 22:00–06:00</span>
+            <span className="font-medium">T1 07:00–15:00 • T2 15:00–23:00 • T3 23:00–07:00</span>
           </div>
           {!hasEmployees && (
             <div className="mt-2 p-3 rounded-md bg-yellow-50 text-yellow-800">
