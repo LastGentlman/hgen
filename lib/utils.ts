@@ -1,5 +1,5 @@
 import { format, addDays } from 'date-fns'
-import { Employee, Schedule, ScheduleDay, Shift, ShiftTemplate, DayOfWeek } from '@/types'
+import { Employee, Schedule, ScheduleDay, Shift, ShiftTemplate, DayOfWeek, ShiftType } from '@/types'
 
 export function generateId(): string {
   // Prefer cryptographically strong UUID v4 when available
@@ -59,6 +59,19 @@ export function calculateShiftDuration(startTime: string, endTime: string): numb
   } catch {
     return 0
   }
+}
+
+// Helper function to determine shift type from time
+export function getShiftTypeFromTime(startTime: string, endTime: string): ShiftType | null {
+  const time = `${startTime}-${endTime}`
+  if (time === '06:00-14:00') return 'morning'
+  if (time === '14:00-22:00') return 'afternoon'
+  if (time === '22:00-06:00') return 'night'
+  // Tolerate legacy canonical times from older schedules
+  if (time === '07:00-15:00') return 'morning'
+  if (time === '15:00-23:00') return 'afternoon'
+  if (time === '23:00-07:00') return 'night'
+  return null
 }
 
 export function generateWeeklySchedule(

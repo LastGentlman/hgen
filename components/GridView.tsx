@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react'
 import { Employee, Schedule, ShiftStatus, ShiftType, CoverageInfo, PositionType, BranchCode, Division } from '@/types'
 import { storage } from '@/lib/storage'
-import { formatTime, generateWeeklySchedule, getDefaultShiftTemplates, parseLocalDate, generateId } from '@/lib/utils'
+import { formatTime, generateWeeklySchedule, getDefaultShiftTemplates, parseLocalDate, generateId, getShiftTypeFromTime } from '@/lib/utils'
 import { exportToPDF, exportToCSV, importFromCSV, importAllSchedulesFromCSV } from '@/lib/exportUtils'
 import { Download, Plus, Upload, Calendar, FileSpreadsheet, MoreVertical } from 'lucide-react'
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
@@ -33,9 +33,9 @@ const STATUS_CONFIG = {
 const STATUS_ROTATION: ShiftStatus[] = ['assigned', 'rest', 'vacation', 'covering']
 
 const SHIFT_LABELS = {
-  morning: { label: 'TURNO 1 DE 06:00 A 14:00 HRS', time: '06:00-14:00', shortLabel: 'T1' },
-  afternoon: { label: 'TURNO 2 DE 14:00 A 22:00 HRS', time: '14:00-22:00', shortLabel: 'T2' },
-  night: { label: 'TURNO 3 DE 22:00 A 06:00 HRS', time: '22:00-06:00', shortLabel: 'T3' }
+  morning: { label: 'TURNO 1 DE 07:00 A 15:00 HRS', time: '07:00-15:00', shortLabel: 'T1' },
+  afternoon: { label: 'TURNO 2 DE 15:00 A 23:00 HRS', time: '15:00-23:00', shortLabel: 'T2' },
+  night: { label: 'TURNO 3 DE 23:00 A 07:00 HRS', time: '23:00-07:00', shortLabel: 'T3' }
 }
 
 const ItemTypes = {
@@ -1111,19 +1111,6 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
   const pendingUpdateRef = useRef<{ schedule: Schedule; status: ShiftStatus; employeeId: string; dayIndex: number; shiftType: ShiftType } | null>(null)
   const updateCounterRef = useRef<number>(0)
 
-  // Helper function to determine shift type from time
-  const getShiftTypeFromTime = (startTime: string, endTime: string): ShiftType | null => {
-    const time = `${startTime}-${endTime}`
-    if (time === '06:00-14:00') return 'morning'
-    if (time === '14:00-22:00') return 'afternoon'
-    if (time === '22:00-06:00') return 'night'
-    // Tolerate legacy canonical times from older schedules
-    if (time === '07:00-15:00') return 'morning'
-    if (time === '15:00-23:00') return 'afternoon'
-    if (time === '23:00-07:00') return 'night'
-    return null
-  }
-
   // Calculate assigned shift dynamically for each employee based on THIS schedule
   const getEmployeeAssignedShift = (employeeId: string): ShiftType => {
     if (!localSchedule) return 'unassigned'
@@ -1231,11 +1218,10 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
         // First pass: collect current positions for employees in this shift
         employeesInShift.forEach(employee => {
           // Find this employee's shift in the first day to get their current position
-          const firstDayShift = updatedSchedule.days[0]?.shifts.find(s =>
-            s.startTime === startTime &&
-            s.endTime === endTime &&
-            s.employeeId === employee.id
-          )
+          const firstDayShift = updatedSchedule.days[0]?.shifts.find(s => {
+            const type = getShiftTypeFromTime(s.startTime, s.endTime)
+            return type === shiftType && s.employeeId === employee.id
+          })
 
           if (firstDayShift?.position) {
             employeePositions.set(employee.id, firstDayShift.position)
@@ -1300,14 +1286,14 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
           updatedSchedule.days.forEach(day => {
             // Find or create shift for this employee
-            let shiftIndex = day.shifts.findIndex(s =>
-              s.startTime === startTime &&
-              s.endTime === endTime &&
-              s.employeeId === employee.id
-            )
+            let shiftIndex = day.shifts.findIndex(s => {
+              const type = getShiftTypeFromTime(s.startTime, s.endTime)
+              return type === shiftType && s.employeeId === employee.id
+            })
 
             if (shiftIndex === -1) {
               // Create new shift for this employee
+              // Use the standard start/end time for this shift type (from SHIFT_LABELS)
               const { generateId } = require('@/lib/utils')
               day.shifts.push({
                 id: generateId(),
@@ -1365,22 +1351,20 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     if (!localSchedule) return undefined
     const day = localSchedule.days[dayIndex]
     if (!day) return undefined
-    const shiftConfig = SHIFT_LABELS[shiftType as keyof typeof SHIFT_LABELS]
-    if (!shiftConfig) return undefined
 
-    const [startTime, endTime] = shiftConfig.time.split('-')
-
-    // If employeeId provided, find shift assigned to that employee
+    // Use flexible matching based on shift type instead of exact time string
     if (employeeId) {
-      return day.shifts.find(s =>
-        s.startTime === startTime &&
-        s.endTime === endTime &&
-        s.employeeId === employeeId
-      )
+      return day.shifts.find(s => {
+        const type = getShiftTypeFromTime(s.startTime, s.endTime)
+        return type === shiftType && s.employeeId === employeeId
+      })
     }
 
-    // Otherwise find any shift with that time (backwards compatibility)
-    return day.shifts.find(s => s.startTime === startTime && s.endTime === endTime)
+    // Otherwise find any shift of that type (backwards compatibility)
+    return day.shifts.find(s => {
+      const type = getShiftTypeFromTime(s.startTime, s.endTime)
+      return type === shiftType
+    })
   }, [localSchedule])
 
   const handleCellClick = useCallback((employeeId: string, dayIndex: number, shiftType: ShiftType, e?: React.MouseEvent) => {
@@ -1457,11 +1441,10 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
     // If clearing a vacation (setting to assigned), find and clear the entire vacation block
     if (targetStatus === 'assigned') {
-      const currentShift = updatedSchedule.days[dayIndex].shifts.find(s =>
-        s.startTime === startTime &&
-        s.endTime === endTime &&
-        s.employeeId === employeeId
-      )
+      const currentShift = updatedSchedule.days[dayIndex].shifts.find(s => {
+        const type = getShiftTypeFromTime(s.startTime, s.endTime)
+        return type === shiftType && s.employeeId === employeeId
+      })
 
       if (currentShift?.status === 'vacation') {
         // Find all consecutive vacation days for this employee/shift
@@ -1469,12 +1452,10 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
         // Scan backwards from dayIndex
         for (let i = dayIndex; i >= 0; i--) {
-          const shift = updatedSchedule.days[i].shifts.find(s =>
-            s.startTime === startTime &&
-            s.endTime === endTime &&
-            s.employeeId === employeeId &&
-            s.status === 'vacation'
-          )
+          const shift = updatedSchedule.days[i].shifts.find(s => {
+            const type = getShiftTypeFromTime(s.startTime, s.endTime)
+            return type === shiftType && s.employeeId === employeeId && s.status === 'vacation'
+          })
           if (shift) {
             vacationDays.unshift(i)
           } else {
@@ -1484,12 +1465,10 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
         // Scan forward from dayIndex+1
         for (let i = dayIndex + 1; i < updatedSchedule.days.length; i++) {
-          const shift = updatedSchedule.days[i].shifts.find(s =>
-            s.startTime === startTime &&
-            s.endTime === endTime &&
-            s.employeeId === employeeId &&
-            s.status === 'vacation'
-          )
+          const shift = updatedSchedule.days[i].shifts.find(s => {
+            const type = getShiftTypeFromTime(s.startTime, s.endTime)
+            return type === shiftType && s.employeeId === employeeId && s.status === 'vacation'
+          })
           if (shift) {
             vacationDays.push(i)
           } else {
@@ -1503,12 +1482,10 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
       // Find all existing vacation days for this employee/shift
       const existingVacationDays: number[] = []
       updatedSchedule.days.forEach((day, di) => {
-        const shift = day.shifts.find(s =>
-          s.startTime === startTime &&
-          s.endTime === endTime &&
-          s.employeeId === employeeId &&
-          s.status === 'vacation'
-        )
+        const shift = day.shifts.find(s => {
+          const type = getShiftTypeFromTime(s.startTime, s.endTime)
+          return type === shiftType && s.employeeId === employeeId && s.status === 'vacation'
+        })
         if (shift) {
           existingVacationDays.push(di)
         }
@@ -1527,11 +1504,10 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
         daysToUpdate = []
         for (let i = minDay; i <= maxDay; i++) {
-          const dayShift = updatedSchedule.days[i].shifts.find(s =>
-            s.startTime === startTime &&
-            s.endTime === endTime &&
-            s.employeeId === employeeId
-          )
+          const dayShift = updatedSchedule.days[i].shifts.find(s => {
+            const type = getShiftTypeFromTime(s.startTime, s.endTime)
+            return type === shiftType && s.employeeId === employeeId
+          })
 
           const currentDayStatus = dayShift?.status || 'assigned'
 
@@ -1555,11 +1531,10 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     // Apply status to days
     daysToUpdate.forEach(di => {
       const day = updatedSchedule.days[di]
-      let shiftIndex = day.shifts.findIndex(s =>
-        s.startTime === startTime &&
-        s.endTime === endTime &&
-        s.employeeId === employeeId
-      )
+      let shiftIndex = day.shifts.findIndex(s => {
+        const type = getShiftTypeFromTime(s.startTime, s.endTime)
+        return type === shiftType && s.employeeId === employeeId
+      })
 
       if (shiftIndex === -1) {
         day.shifts.push({
@@ -1773,15 +1748,10 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     const day = updatedSchedule.days[coverageMenu.dayIndex]
     if (!day) return
 
-    const shiftConfig = SHIFT_LABELS[coverageMenu.shiftType as keyof typeof SHIFT_LABELS]
-    if (!shiftConfig) return
-    const [startTime, endTime] = shiftConfig.time.split('-')
-
-    const shiftIndex = day.shifts.findIndex((s: any) =>
-      s.startTime === startTime &&
-      s.endTime === endTime &&
-      s.employeeId === coverageMenu.employeeId
-    )
+    const shiftIndex = day.shifts.findIndex((s: any) => {
+      const type = getShiftTypeFromTime(s.startTime, s.endTime)
+      return type === coverageMenu.shiftType && s.employeeId === coverageMenu.employeeId
+    })
 
     if (shiftIndex !== -1) {
       day.shifts[shiftIndex].coverageInfo = coverageInfo
@@ -2007,11 +1977,10 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
         const [oldStart, oldEnd] = oldShiftConfig.time.split('-')
 
         // Find the old shift manually in the cloned object
-        const oldShift = day.shifts.find((s: any) =>
-          s.startTime === oldStart &&
-          s.endTime === oldEnd &&
-          s.employeeId === employeeId
-        )
+        const oldShift = day.shifts.find((s: any) => {
+          const type = getShiftTypeFromTime(s.startTime, s.endTime)
+          return type === oldShiftType && s.employeeId === employeeId
+        })
 
         if (oldShift) {
           // Get the status from the old shift
@@ -2145,12 +2114,10 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     // Find all existing vacation days for this employee/shift
     const existingVacationDays: number[] = []
     updatedSchedule.days.forEach((day: any, di: number) => {
-      const shift = day.shifts.find((s: any) =>
-        s.startTime === startTime &&
-        s.endTime === endTime &&
-        s.employeeId === employeeId &&
-        s.status === 'vacation'
-      )
+      const shift = day.shifts.find((s: any) => {
+        const type = getShiftTypeFromTime(s.startTime, s.endTime)
+        return type === shiftType && s.employeeId === employeeId && s.status === 'vacation'
+      })
       if (shift) {
         existingVacationDays.push(di)
       }
@@ -2168,11 +2135,10 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
 
     const daysToUpdate: number[] = []
     for (let i = minDay; i <= maxDay; i++) {
-      const dayShift = updatedSchedule.days[i].shifts.find((s: any) =>
-        s.startTime === startTime &&
-        s.endTime === endTime &&
-        s.employeeId === employeeId
-      )
+      const dayShift = updatedSchedule.days[i].shifts.find((s: any) => {
+        const type = getShiftTypeFromTime(s.startTime, s.endTime)
+        return type === shiftType && s.employeeId === employeeId
+      })
 
       const currentDayStatus = dayShift?.status || 'assigned'
 
@@ -2192,11 +2158,10 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
     // Apply vacation status to all days in the merged block
     daysToUpdate.forEach(di => {
       const day = updatedSchedule.days[di]
-      let shiftIndex = day.shifts.findIndex((s: any) =>
-        s.employeeId === employeeId &&
-        s.startTime === startTime &&
-        s.endTime === endTime
-      )
+      let shiftIndex = day.shifts.findIndex((s: any) => {
+        const type = getShiftTypeFromTime(s.startTime, s.endTime)
+        return type === shiftType && s.employeeId === employeeId
+      })
 
       if (shiftIndex === -1) {
         const { generateId } = require('@/lib/utils')
@@ -2429,15 +2394,12 @@ export default function GridView({ schedule, employees, onUpdate, branchCode, di
         if (!schedule || schedule.days.length === 0) return 'EXT'
 
         const day = schedule.days[0]
-        const shiftConfig = SHIFT_LABELS[shiftType as keyof typeof SHIFT_LABELS]
-        if (!shiftConfig) return 'EXT'
 
-        const [startTime, endTime] = shiftConfig.time.split('-')
-        const shift = day.shifts.find(s =>
-          s.startTime === startTime &&
-          s.endTime === endTime &&
-          s.employeeId === employeeId
-        )
+        // Find shift by type instead of exact time string
+        const shift = day.shifts.find(s => {
+          const type = getShiftTypeFromTime(s.startTime, s.endTime)
+          return type === shiftType && s.employeeId === employeeId
+        })
 
         return shift?.position || 'EXT'
       }

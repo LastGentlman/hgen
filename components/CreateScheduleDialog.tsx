@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { BranchCode, Division, Employee, Schedule, Shift, ShiftStatus, ShiftType, PositionType } from '@/types'
 import { storage } from '@/lib/storage'
-import { generateWeeklySchedule, getDefaultShiftTemplates } from '@/lib/utils'
+import { generateWeeklySchedule, getDefaultShiftTemplates, getShiftTypeFromTime } from '@/lib/utils'
 import { showLoading, closeAlert, showError, showSuccess, showConfirm } from '@/lib/sweetalert'
 import { recordScheduleCreationMeta } from '@/lib/tracking'
 
@@ -38,16 +38,6 @@ function formatAutoName(date: Date): string {
 
 function datesEqualISO(a: Date, b: Date): boolean {
   return a.toISOString().split('T')[0] === b.toISOString().split('T')[0]
-}
-
-// Robust mapper for shift type from start time (handles 06/14/22 and 07/15/23 families)
-function getShiftTypeFromTime(startTime: string): ShiftType {
-  const map: Record<string, ShiftType> = {
-    '06:00': 'morning', '07:00': 'morning',
-    '14:00': 'afternoon', '15:00': 'afternoon',
-    '22:00': 'night', '23:00': 'night'
-  }
-  return map[startTime] ?? 'unassigned'
 }
 
 // Rotation mapping copied and generalized from GridView, adapted to default 07/15/23 times
@@ -231,7 +221,8 @@ export default function CreateScheduleDialog({ isOpen, onClose, branchCode, divi
           prevDay.shifts.forEach(prevShift => {
             if (!prevShift.employeeId || !prevShift.isAssigned) return
 
-            const currentShiftType = getShiftTypeFromTime(prevShift.startTime)
+            // Fix: pass both start and end time to getShiftTypeFromTime
+            const currentShiftType = getShiftTypeFromTime(prevShift.startTime, prevShift.endTime) || 'unassigned'
             const currentPosition = (prevShift.position || 'EXT') as PositionType
 
             const employeeNewRest = newRestDays.get(prevShift.employeeId) || []
